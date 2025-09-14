@@ -118,7 +118,10 @@ export default function MatchSetup() {
             <Text style={styles.title}>Basics</Text>
 
             <Card>
-              <Field label="Team A Name">
+              <Field label="">
+                <Text style={styles.label}>
+                  Team A Name<Text style={styles.req}> *</Text>
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={teamA}
@@ -130,7 +133,10 @@ export default function MatchSetup() {
                 />
               </Field>
 
-              <Field label="Team B Name">
+              <Field label="">
+                <Text style={styles.label}>
+                  Team B Name<Text style={styles.req}> *</Text>
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={teamB}
@@ -144,7 +150,10 @@ export default function MatchSetup() {
 
               <View style={styles.row2}>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Label># Players — {teamA || 'Team A'}</Label>
+                  <Text style={styles.label}>
+                    # Players — {teamA || 'Team A'}
+                    <Text style={styles.req}> *</Text>
+                  </Text>
                   <TextInput
                     style={styles.input}
                     value={teamACount}
@@ -159,7 +168,10 @@ export default function MatchSetup() {
                   <Badge>Range 1–15</Badge>
                 </View>
                 <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Label># Players — {teamB || 'Team B'}</Label>
+                  <Text style={styles.label}>
+                    # Players — {teamB || 'Team B'}
+                    <Text style={styles.req}> *</Text>
+                  </Text>
                   <TextInput
                     style={styles.input}
                     value={teamBCount}
@@ -175,7 +187,10 @@ export default function MatchSetup() {
                 </View>
               </View>
 
-              <Field label="# of Overs">
+              <Field label="">
+                <Text style={styles.label}>
+                  # of Overs<Text style={styles.req}> *</Text>
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={overs}
@@ -195,10 +210,22 @@ export default function MatchSetup() {
         {/* STEP 2 */}
         {step === 2 && (
           <View>
-            <Text style={styles.title}>Players & Captains</Text>
+            <Text style={styles.title}>
+              Players & Captains<Text style={styles.req}> *</Text>
+            </Text>
 
             {/* Team A */}
-            <Card title={`${teamA || 'Team A'} (${clampInt(teamACount,1,15)})`}>
+            <Card>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>
+                  {teamA || 'Team A'} ({clampInt(teamACount, 1, 15)})
+                </Text>
+                <Text style={styles.req}> *</Text>
+              </View>
+              <Text style={styles.cardCaption}>
+                Captain required; min 2 names<Text style={styles.req}> *</Text>
+              </Text>
+
               {Array.from({ length: clampInt(teamACount, 1, 15) }).map((_, idx) => (
                 <PlayerRow
                   key={`A-${idx}`}
@@ -209,11 +236,20 @@ export default function MatchSetup() {
                   placeholder={`Player ${idx + 1}`}
                 />
               ))}
-              <Text style={styles.helpNote}>Pick the captain by tapping the C badge.</Text>
             </Card>
 
             {/* Team B */}
-            <Card title={`${teamB || 'Team B'} (${clampInt(teamBCount,1,15)})`}>
+            <Card>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>
+                  {teamB || 'Team B'} ({clampInt(teamBCount, 1, 15)})
+                </Text>
+                <Text style={styles.req}> *</Text>
+              </View>
+              <Text style={styles.cardCaption}>
+                Captain required; min 2 names<Text style={styles.req}> *</Text>
+              </Text>
+
               {Array.from({ length: clampInt(teamBCount, 1, 15) }).map((_, idx) => (
                 <PlayerRow
                   key={`B-${idx}`}
@@ -224,7 +260,6 @@ export default function MatchSetup() {
                   placeholder={`Player ${idx + 1}`}
                 />
               ))}
-              <Text style={styles.helpNote}>Pick the captain by tapping the C badge.</Text>
             </Card>
 
             <Text style={styles.tip}>
@@ -267,6 +302,14 @@ export default function MatchSetup() {
             <Text style={styles.btnText}>{step === 3 ? 'START MATCH' : 'NEXT'}</Text>
           </Pressable>
         </View>
+
+        {/* HOME button */}
+        <Pressable
+          style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]}
+          onPress={() => router.replace('/')}
+        >
+          <Text style={styles.btnText}>HOME</Text>
+        </Pressable>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -287,18 +330,14 @@ function Line() { return <View style={styles.line} />; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.field}>
-      <Label>{label}</Label>
+      {!!label && <Text style={styles.label}>{label}</Text>}
       {children}
     </View>
   );
 }
-function Label({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.label}>{children}</Text>;
-}
-function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+function Card({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.card}>
-      {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
       {children}
     </View>
   );
@@ -402,6 +441,7 @@ const styles = StyleSheet.create({
   row2: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
 
   label: { color: '#CFE3FF', marginBottom: 6, fontSize: 12, letterSpacing: 0.6 },
+  req: { color: '#ff6b6b', fontWeight: '800' },
 
   input: {
     backgroundColor: '#121924',
@@ -433,7 +473,9 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
     ...Platform.select({ android: { elevation: 3 } }),
   },
-  cardTitle: { color: '#EAF2F8', fontWeight: '900', marginBottom: 10 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 },
+  cardTitle: { color: '#EAF2F8', fontWeight: '900' },
+  cardCaption: { color: '#A8C0D6', marginBottom: 10 },
 
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   cBadge: {
@@ -457,9 +499,7 @@ const styles = StyleSheet.create({
   helpNote: { color: '#9bb4c9', fontSize: 12, marginTop: 4 },
   tip: { color: '#A8C0D6', textAlign: 'center', marginTop: 6 },
 
-  footer: {
-    flexDirection: 'row', gap: 10, marginTop: 18,
-  },
+  footer: { flexDirection: 'row', gap: 10, marginTop: 18 },
   btn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
   btnPrimary: { backgroundColor: '#2A73D6', borderColor: '#2A73D6' },
   btnSecondary: { backgroundColor: '#1b2430', borderColor: '#283445' },

@@ -96,6 +96,11 @@ export default function Scoring() {
         <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => router.back()}>
           <Text style={styles.btnText}>BACK</Text>
         </Pressable>
+
+        {/* HOME button */}
+        <Pressable style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]} onPress={() => router.replace('/')}>
+          <Text style={styles.btnText}>HOME</Text>
+        </Pressable>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -142,5 +147,6 @@ const styles = StyleSheet.create({
 
   btn: { marginTop: 24, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
   btnSecondary: { backgroundColor: '#1b2430', borderColor: '#283445' },
+  btnPrimary: { backgroundColor: '#2A73D6', borderColor: '#2A73D6' },
   btnText: { color: '#fff', fontWeight: '800', letterSpacing: 1 },
 });
