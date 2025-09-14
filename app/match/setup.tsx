@@ -57,7 +57,7 @@ export default function MatchSetup() {
     if (!stepValid) return;
     if (step === 1) setStep(2);
     else if (step === 2) setStep(3);
-    else startScoring();
+    else goToToss();
   };
 
   const goBack = () => {
@@ -66,7 +66,8 @@ export default function MatchSetup() {
     if (step === 3) setStep(2);
   };
 
-  const startScoring = () => {
+  // NEW: final step goes to Toss screen (not scoring yet)
+  const goToToss = () => {
     const o = clampInt(overs, 1, 50).toString();
     const nA = clampInt(teamACount, 1, 15).toString();
     const nB = clampInt(teamBCount, 1, 15).toString();
@@ -75,7 +76,7 @@ export default function MatchSetup() {
     const capB = (captainBIndex ?? Math.max(0, playersB.findIndex(p => !!p.trim()))) || 0;
 
     router.push({
-      pathname: '/match/scoring',
+      pathname: '/match/toss',
       params: {
         teamA: teamA.trim(),
         teamB: teamB.trim(),
@@ -289,7 +290,7 @@ export default function MatchSetup() {
           </View>
         )}
 
-        {/* footer buttons INSIDE the scroll so they can move with keyboard */}
+        {/* footer buttons */}
         <View style={styles.footer}>
           <Pressable style={[styles.btn, styles.btnSecondary]} onPress={goBack} disabled={step === 1}>
             <Text style={[styles.btnText, step === 1 && { opacity: 0.35 }]}>BACK</Text>
