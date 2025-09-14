@@ -1,17 +1,12 @@
+// app/index.tsx
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Image,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function Home() {
-  // pulsing glow like old-school title screens
+  const router = useRouter();
+
   const glow = useRef(new Animated.Value(0.6)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -28,15 +23,12 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0b0f14' }}>
-      {/* stadium sky gradient */}
       <LinearGradient
         colors={['#0b0f14', '#0c1730', '#091124']}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.9, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-
-      {/* faint flood-light beams */}
       <LinearGradient
         colors={['rgba(42,115,214,0.25)', 'transparent']}
         start={{ x: 0.1, y: 0 }}
@@ -50,20 +42,12 @@ export default function Home() {
         style={[StyleSheet.absoluteFill, { transform: [{ rotate: '8deg' }] }]}
       />
 
-      {/* header with logo + title */}
       <View style={styles.header}>
-        <Image
-          source={require('../assets/images/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Image source={require('../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
         <Animated.Text
           style={[
             styles.title,
-            {
-              textShadowRadius: shadow as any,
-              textShadowColor: 'rgba(42,115,214,0.85)',
-            },
+            { textShadowRadius: shadow as any, textShadowColor: 'rgba(42,115,214,0.85)' },
           ]}
         >
           CricLedger
@@ -71,19 +55,14 @@ export default function Home() {
         <Text style={styles.subtitle}>Ultimate Scoring</Text>
       </View>
 
-      {/* menu panel */}
       <View style={styles.panel}>
-        <MenuButton label="START MATCH" primary onPress={() => console.log('Start Match')} />
+        <MenuButton label="START MATCH" primary onPress={() => router.push('/match/setup')} />
         <MenuButton label="LOAD MATCH" onPress={() => console.log('Load (coming soon)')} />
         <MenuButton label="SETTINGS" onPress={() => console.log('Settings')} />
         <MenuButton label="ABOUT" onPress={() => console.log('About')} />
-
-        <Text style={styles.hint}>
-          Tip: Long-press buttons for a subtle rumble (Android ripple included).
-        </Text>
+        <Text style={styles.hint}>Tip: Long-press buttons for a subtle rumble (Android ripple included).</Text>
       </View>
 
-      {/* footer strip like old HUD bars */}
       <View style={styles.footerHud}>
         <View style={styles.hudDot} />
         <Text style={styles.footerText}>Cric Blue</Text>
@@ -114,23 +93,14 @@ function MenuButton({
       ]}
     >
       <Text style={styles.btnText}>{label}</Text>
-      {/* faux bevel / highlight line */}
       <View style={styles.highlight} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingTop: 56,
-    paddingBottom: 12,
-    alignItems: 'center',
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
-  },
+  header: { paddingTop: 56, paddingBottom: 12, alignItems: 'center' },
+  logo: { width: 96, height: 96, marginBottom: 10 },
   title: {
     color: '#EAF2F8',
     fontSize: 42,
@@ -139,12 +109,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     textShadowOffset: { width: 0, height: 0 },
   },
-  subtitle: {
-    color: '#9bb4c9',
-    marginTop: 6,
-    fontSize: 12,
-    letterSpacing: 1,
-  },
+  subtitle: { color: '#9bb4c9', marginTop: 6, fontSize: 12, letterSpacing: 1 },
   panel: {
     marginTop: 22,
     marginHorizontal: 18,
@@ -167,54 +132,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  btnPrimary: {
-    backgroundColor: '#2A73D6',
-    borderColor: '#2A73D6',
-  },
-  btnSecondary: {
-    backgroundColor: '#1b2430',
-    borderColor: '#283445',
-  },
-  btnText: {
-    color: '#fff',
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  highlight: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    top: 6,
-    height: 2,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 2,
-  },
-  hint: {
-    color: '#7e92a7',
-    textAlign: 'center',
-    marginTop: 10,
-    fontSize: 12,
-  },
+  btnPrimary: { backgroundColor: '#2A73D6', borderColor: '#2A73D6' },
+  btnSecondary: { backgroundColor: '#1b2430', borderColor: '#283445' },
+  btnText: { color: '#fff', fontWeight: '800', letterSpacing: 1 },
+  highlight: { position: 'absolute', left: 10, right: 10, top: 6, height: 2, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 2 },
+  hint: { color: '#7e92a7', textAlign: 'center', marginTop: 10, fontSize: 12 },
   footerHud: {
-    position: 'absolute',
-    bottom: 10,
-    left: 16,
-    right: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1e2a3a',
-    backgroundColor: 'rgba(14,19,27,0.7)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
+    position: 'absolute', bottom: 10, left: 16, right: 16, borderRadius: 10,
+    borderWidth: 1, borderColor: '#1e2a3a', backgroundColor: 'rgba(14,19,27,0.7)',
+    paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', gap: 10, alignItems: 'center',
   },
   footerText: { color: '#9bb4c9', fontSize: 12 },
-  hudDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#2A73D6',
-  },
+  hudDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2A73D6' },
 });
