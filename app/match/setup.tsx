@@ -3,8 +3,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import GradientBackground from '../components/GradientBackground';
 
 type Step = 1 | 2 | 3;
+type TeamTab = 'A' | 'B';
 
 export default function MatchSetup() {
   const router = useRouter();
@@ -16,13 +18,17 @@ export default function MatchSetup() {
   const [teamBCount, setTeamBCount] = useState('11');
   const [overs, setOvers] = useState('10');
 
-  // Step 2 — rosters + captains
+  // Optional players step
+  const [enterPlayersNow, setEnterPlayersNow] = useState(false);
+
+  // Step 2 — rosters + captains (only if enterPlayersNow)
   const [playersA, setPlayersA] = useState<string[]>([]);
   const [playersB, setPlayersB] = useState<string[]>([]);
   const [captainAIndex, setCaptainAIndex] = useState<number | null>(null);
   const [captainBIndex, setCaptainBIndex] = useState<number | null>(null);
+  const [teamTab, setTeamTab] = useState<TeamTab>('A'); // edit one team at a time
 
-  // wizard
+  // Wizard
   const [step, setStep] = useState<Step>(1);
 
   // keep arrays in sync when counts change
@@ -31,7 +37,6 @@ export default function MatchSetup() {
     const nB = clampInt(teamBCount, 1, 15);
     setPlayersA(prev => resizeArray(prev, nA));
     setPlayersB(prev => resizeArray(prev, nB));
-    // reset captain if out of bounds
     if (captainAIndex != null && captainAIndex >= nA) setCaptainAIndex(null);
     if (captainBIndex != null && captainBIndex >= nB) setCaptainBIndex(null);
   }, [teamACount, teamBCount]);
@@ -44,19 +49,21 @@ export default function MatchSetup() {
       const nB = clampInt(teamBCount, 1, 15);
       return !!teamA.trim() && !!teamB.trim() && o >= 1 && nA >= 1 && nB >= 1;
     }
-    if (step === 2) {
+    if (enterPlayersNow && step === 2) {
       const filledA = playersA.filter(s => !!s.trim()).length;
       const filledB = playersB.filter(s => !!s.trim()).length;
       const captainOk = captainAIndex != null && captainBIndex != null;
       return filledA >= 2 && filledB >= 2 && captainOk;
     }
     return true;
-  }, [step, teamA, teamB, overs, teamACount, teamBCount, playersA, playersB, captainAIndex, captainBIndex]);
+  }, [step, enterPlayersNow, teamA, teamB, overs, teamACount, teamBCount, playersA, playersB, captainAIndex, captainBIndex]);
 
   const goNext = () => {
     if (!stepValid) return;
-    if (step === 1) setStep(2);
-    else if (step === 2) setStep(3);
+    if (step === 1) {
+      if (!enterPlayersNow) { goToToss(); return; } // Quick Start path
+      setStep(2);
+    } else if (step === 2) setStep(3);
     else goToToss();
   };
 
@@ -66,14 +73,18 @@ export default function MatchSetup() {
     if (step === 3) setStep(2);
   };
 
-  // NEW: final step goes to Toss screen (not scoring yet)
   const goToToss = () => {
     const o = clampInt(overs, 1, 50).toString();
     const nA = clampInt(teamACount, 1, 15).toString();
     const nB = clampInt(teamBCount, 1, 15).toString();
-    // safety: fallback captains if somehow missing
-    const capA = (captainAIndex ?? Math.max(0, playersA.findIndex(p => !!p.trim()))) || 0;
-    const capB = (captainBIndex ?? Math.max(0, playersB.findIndex(p => !!p.trim()))) || 0;
+
+    // If we skipped players, default captain to index 0 for each team to keep "exactly one" invariant.
+    const capA = enterPlayersNow
+      ? (captainAIndex ?? Math.max(0, playersA.findIndex(p => !!p.trim())))
+      : 0;
+    const capB = enterPlayersNow
+      ? (captainBIndex ?? Math.max(0, playersB.findIndex(p => !!p.trim())))
+      : 0;
 
     router.push({
       pathname: '/match/toss',
@@ -83,6 +94,7 @@ export default function MatchSetup() {
         overs: o,
         countA: nA,
         countB: nB,
+        // Arrays are already the right length (empty strings are fine)
         playersA: JSON.stringify(playersA),
         playersB: JSON.stringify(playersB),
         captainAIndex: String(capA),
@@ -91,228 +103,246 @@ export default function MatchSetup() {
     });
   };
 
+  // Stepper rendering depends on whether we’re entering players now.
+  const showPlayersSteps = enterPlayersNow;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Header / Stepper */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Match Setup</Text>
-        <View style={styles.stepper}>
-          <Dot active={step >= 1} label="Basics" />
-          <Line />
-          <Dot active={step >= 2} label="Players" />
-          <Line />
-          <Dot active={step >= 3} label="Review" />
-        </View>
-      </View>
-
-      {/* One scrollable area that adjusts automatically with the keyboard */}
-      <KeyboardAwareScrollView
-        enableOnAndroid
-        keyboardShouldPersistTaps="handled"
-        extraScrollHeight={28}
-        enableAutomaticScroll
-        contentContainerStyle={styles.inner}
-      >
-        {/* STEP 1 */}
-        {step === 1 && (
-          <View>
-            <Text style={styles.title}>Basics</Text>
-
-            <Card>
-              <Field label="">
-                <Text style={styles.label}>
-                  Team A Name<Text style={styles.req}> *</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={teamA}
-                  onChangeText={setTeamA}
-                  placeholder="Enter Team A"
-                  placeholderTextColor="#A8C0D6"
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                />
-              </Field>
-
-              <Field label="">
-                <Text style={styles.label}>
-                  Team B Name<Text style={styles.req}> *</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={teamB}
-                  onChangeText={setTeamB}
-                  placeholder="Enter Team B"
-                  placeholderTextColor="#A8C0D6"
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                />
-              </Field>
-
-              <View style={styles.row2}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.label}>
-                    # Players — {teamA || 'Team A'}
-                    <Text style={styles.req}> *</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    value={teamACount}
-                    onChangeText={setTeamACount}
-                    keyboardType="number-pad"
-                    placeholder="e.g. 11"
-                    placeholderTextColor="#A8C0D6"
-                    maxLength={2}
-                    returnKeyType="next"
-                    blurOnSubmit={false}
-                  />
-                  <Badge>Range 1–15</Badge>
-                </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.label}>
-                    # Players — {teamB || 'Team B'}
-                    <Text style={styles.req}> *</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    value={teamBCount}
-                    onChangeText={setTeamBCount}
-                    keyboardType="number-pad"
-                    placeholder="e.g. 8"
-                    placeholderTextColor="#A8C0D6"
-                    maxLength={2}
-                    returnKeyType="next"
-                    blurOnSubmit={false}
-                  />
-                  <Badge>Range 1–15</Badge>
-                </View>
-              </View>
-
-              <Field label="">
-                <Text style={styles.label}>
-                  # of Overs<Text style={styles.req}> *</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={overs}
-                  onChangeText={setOvers}
-                  keyboardType="number-pad"
-                  placeholder="e.g. 10"
-                  placeholderTextColor="#A8C0D6"
-                  maxLength={2}
-                  returnKeyType="done"
-                />
-                <Badge>Range 1–50</Badge>
-              </Field>
-            </Card>
+    <GradientBackground>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* Header / Stepper */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Match Setup</Text>
+          <View style={styles.stepper}>
+            <Dot active={step >= 1} label="Basics" />
+            {showPlayersSteps && (
+              <>
+                <Line />
+                <Dot active={step >= 2} label="Players" />
+                <Line />
+                <Dot active={step >= 3} label="Review" />
+              </>
+            )}
           </View>
-        )}
-
-        {/* STEP 2 */}
-        {step === 2 && (
-          <View>
-            <Text style={styles.title}>
-              Players & Captains<Text style={styles.req}> *</Text>
-            </Text>
-
-            {/* Team A */}
-            <Card>
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>
-                  {teamA || 'Team A'} ({clampInt(teamACount, 1, 15)})
-                </Text>
-                <Text style={styles.req}> *</Text>
-              </View>
-              <Text style={styles.cardCaption}>
-                Captain required; min 2 names<Text style={styles.req}> *</Text>
-              </Text>
-
-              {Array.from({ length: clampInt(teamACount, 1, 15) }).map((_, idx) => (
-                <PlayerRow
-                  key={`A-${idx}`}
-                  value={playersA[idx] ?? ''}
-                  onChange={(t) => setPlayersA(editAt(playersA, idx, t))}
-                  isCaptain={captainAIndex === idx}
-                  onPickCaptain={() => setCaptainAIndex(idx)}
-                  placeholder={`Player ${idx + 1}`}
-                />
-              ))}
-            </Card>
-
-            {/* Team B */}
-            <Card>
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>
-                  {teamB || 'Team B'} ({clampInt(teamBCount, 1, 15)})
-                </Text>
-                <Text style={styles.req}> *</Text>
-              </View>
-              <Text style={styles.cardCaption}>
-                Captain required; min 2 names<Text style={styles.req}> *</Text>
-              </Text>
-
-              {Array.from({ length: clampInt(teamBCount, 1, 15) }).map((_, idx) => (
-                <PlayerRow
-                  key={`B-${idx}`}
-                  value={playersB[idx] ?? ''}
-                  onChange={(t) => setPlayersB(editAt(playersB, idx, t))}
-                  isCaptain={captainBIndex === idx}
-                  onPickCaptain={() => setCaptainBIndex(idx)}
-                  placeholder={`Player ${idx + 1}`}
-                />
-              ))}
-            </Card>
-
-            <Text style={styles.tip}>
-              Need at least 2 named players per team, and a captain selected for each.
-            </Text>
-          </View>
-        )}
-
-        {/* STEP 3 */}
-        {step === 3 && (
-          <View>
-            <Text style={styles.title}>Review & Confirm</Text>
-
-            <ReviewCard
-              title={`${teamA} — ${clampInt(teamACount,1,15)} players`}
-              subtitle={`Overs: ${clampInt(overs,1,50)}`}
-              list={playersA}
-              captainIndex={captainAIndex ?? -1}
-            />
-            <ReviewCard
-              title={`${teamB} — ${clampInt(teamBCount,1,15)} players`}
-              subtitle={`Overs: ${clampInt(overs,1,50)}`}
-              list={playersB}
-              captainIndex={captainBIndex ?? -1}
-            />
-            <Text style={styles.tip}>Everything look good? Start the match when ready.</Text>
-          </View>
-        )}
-
-        {/* footer buttons */}
-        <View style={styles.footer}>
-          <Pressable style={[styles.btn, styles.btnSecondary]} onPress={goBack} disabled={step === 1}>
-            <Text style={[styles.btnText, step === 1 && { opacity: 0.35 }]}>BACK</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.btn, stepValid ? styles.btnPrimary : styles.btnDisabled]}
-            onPress={goNext}
-            disabled={!stepValid}
-          >
-            <Text style={styles.btnText}>{step === 3 ? 'START MATCH' : 'NEXT'}</Text>
-          </Pressable>
         </View>
 
-        {/* HOME button */}
-        <Pressable
-          style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]}
-          onPress={() => router.replace('/')}
+        <KeyboardAwareScrollView
+          enableOnAndroid
+          keyboardShouldPersistTaps="handled"
+          extraScrollHeight={28}
+          enableAutomaticScroll
+          contentContainerStyle={styles.inner}
         >
-          <Text style={styles.btnText}>HOME</Text>
-        </Pressable>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+          {/* STEP 1 */}
+          {step === 1 && (
+            <View>
+              <Text style={styles.title}>Basics</Text>
+
+              <Card>
+                <Field label="">
+                  <Text style={styles.label}>
+                    Team A Name<Text style={styles.req}> *</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={teamA}
+                    onChangeText={setTeamA}
+                    placeholder="Enter Team A"
+                    placeholderTextColor="#A8C0D6"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                  />
+                </Field>
+
+                <Field label="">
+                  <Text style={styles.label}>
+                    Team B Name<Text style={styles.req}> *</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={teamB}
+                    onChangeText={setTeamB}
+                    placeholder="Enter Team B"
+                    placeholderTextColor="#A8C0D6"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                  />
+                </Field>
+
+                <View style={styles.row2}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.label}>
+                      # Players — {teamA || 'Team A'}
+                      <Text style={styles.req}> *</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={teamACount}
+                      onChangeText={setTeamACount}
+                      keyboardType="number-pad"
+                      placeholder="e.g. 11"
+                      placeholderTextColor="#A8C0D6"
+                      maxLength={2}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                    />
+                    <Badge>Range 1–15</Badge>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.label}>
+                      # Players — {teamB || 'Team B'}
+                      <Text style={styles.req}> *</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={teamBCount}
+                      onChangeText={setTeamBCount}
+                      keyboardType="number-pad"
+                      placeholder="e.g. 11"
+                      placeholderTextColor="#A8C0D6"
+                      maxLength={2}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                    />
+                    <Badge>Range 1–15</Badge>
+                  </View>
+                </View>
+
+                <Field label="">
+                  <Text style={styles.label}>
+                    # of Overs<Text style={styles.req}> *</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={overs}
+                    onChangeText={setOvers}
+                    keyboardType="number-pad"
+                    placeholder="e.g. 10"
+                    placeholderTextColor="#A8C0D6"
+                    maxLength={2}
+                    returnKeyType="done"
+                  />
+                  <Badge>Range 1–50</Badge>
+                </Field>
+              </Card>
+
+              {/* Optional player names toggle */}
+              <Text style={[styles.label, { marginTop: 4 }]}>Player names (optional)</Text>
+              <View style={styles.teamTabs}>
+                <Pressable
+                  onPress={() => setEnterPlayersNow(false)}
+                  style={[styles.teamTabBtn, !enterPlayersNow ? styles.teamTabOn : styles.teamTabOff]}
+                >
+                  <Text style={styles.teamTabText}>Quick Start</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setEnterPlayersNow(true)}
+                  style={[styles.teamTabBtn, enterPlayersNow ? styles.teamTabOn : styles.teamTabOff]}
+                >
+                  <Text style={styles.teamTabText}>Enter Names Now</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.tip}>
+                You can always score with unnamed players and edit names later.
+              </Text>
+            </View>
+          )}
+
+          {/* STEP 2 (only if enterPlayersNow) */}
+          {enterPlayersNow && step === 2 && (
+            <View>
+              <Text style={styles.title}>
+                Players & Captains<Text style={styles.req}> *</Text>
+              </Text>
+
+              {/* Team tabs to keep page light */}
+              <View style={styles.teamTabs}>
+                <Pressable
+                  onPress={() => setTeamTab('A')}
+                  style={[styles.teamTabBtn, teamTab === 'A' ? styles.teamTabOn : styles.teamTabOff]}
+                >
+                  <Text style={styles.teamTabText}>{teamA || 'Team A'}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setTeamTab('B')}
+                  style={[styles.teamTabBtn, teamTab === 'B' ? styles.teamTabOn : styles.teamTabOff]}
+                >
+                  <Text style={styles.teamTabText}>{teamB || 'Team B'}</Text>
+                </Pressable>
+              </View>
+
+              {teamTab === 'A' ? (
+                <TeamEditCard
+                  title={`${teamA || 'Team A'} (${clampInt(teamACount, 1, 15)})`}
+                  count={clampInt(teamACount, 1, 15)}
+                  players={playersA}
+                  setPlayers={setPlayersA}
+                  captainIndex={captainAIndex}
+                  setCaptainIndex={setCaptainAIndex}
+                />
+              ) : (
+                <TeamEditCard
+                  title={`${teamB || 'Team B'} (${clampInt(teamBCount, 1, 15)})`}
+                  count={clampInt(teamBCount, 1, 15)}
+                  players={playersB}
+                  setPlayers={setPlayersB}
+                  captainIndex={captainBIndex}
+                  setCaptainIndex={setCaptainBIndex}
+                />
+              )}
+
+              <Text style={styles.tip}>
+                Need at least 2 named players per team, and a captain selected for each.
+              </Text>
+            </View>
+          )}
+
+          {/* STEP 3 (only if enterPlayersNow) */}
+          {enterPlayersNow && step === 3 && (
+            <View>
+              <Text style={styles.title}>Review & Confirm</Text>
+
+              <ReviewCard
+                title={`${teamA} — ${clampInt(teamACount,1,15)} players`}
+                subtitle={`Overs: ${clampInt(overs,1,50)}`}
+                list={playersA}
+                captainIndex={captainAIndex ?? -1}
+              />
+              <ReviewCard
+                title={`${teamB} — ${clampInt(teamBCount,1,15)} players`}
+                subtitle={`Overs: ${clampInt(overs,1,50)}`}
+                list={playersB}
+                captainIndex={captainBIndex ?? -1}
+              />
+              <Text style={styles.tip}>Everything look good? Start the match when ready.</Text>
+            </View>
+          )}
+
+          {/* footer buttons */}
+          <View style={styles.footer}>
+            <Pressable style={[styles.btn, styles.btnSecondary]} onPress={goBack} disabled={step === 1}>
+              <Text style={[styles.btnText, step === 1 && { opacity: 0.35 }]}>BACK</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.btn, stepValid ? styles.btnPrimary : styles.btnDisabled]}
+              onPress={goNext}
+              disabled={!stepValid}
+            >
+              <Text style={styles.btnText}>
+                {step === 1 && !enterPlayersNow ? 'START TOSS' : step === 3 ? 'START MATCH' : 'NEXT'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* HOME button */}
+          <Pressable
+            style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]}
+            onPress={() => router.replace('/')}
+          >
+            <Text style={styles.btnText}>HOME</Text>
+          </Pressable>
+        </KeyboardAwareScrollView>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -343,6 +373,41 @@ function Card({ children }: { children: React.ReactNode }) {
     </View>
   );
 }
+
+function TeamEditCard({
+  title, count, players, setPlayers, captainIndex, setCaptainIndex,
+}: {
+  title: string;
+  count: number;
+  players: string[];
+  setPlayers: React.Dispatch<React.SetStateAction<string[]>>;
+  captainIndex: number | null;
+  setCaptainIndex: (n: number) => void;
+}) {
+  return (
+    <Card>
+      <View style={styles.cardTitleRow}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.req}> *</Text>
+      </View>
+      <Text style={styles.cardCaption}>
+        Captain required; min 2 names<Text style={styles.req}> *</Text>
+      </Text>
+
+      {Array.from({ length: count }).map((_, idx) => (
+        <PlayerRow
+          key={idx}
+          value={players[idx] ?? ''}
+          onChange={(t) => setPlayers((prev) => editAt(prev, idx, t))}
+          isCaptain={captainIndex === idx}
+          onPickCaptain={() => setCaptainIndex(idx)}
+          placeholder={`Player ${idx + 1}`}
+        />
+      ))}
+    </Card>
+  );
+}
+
 function PlayerRow({
   value, onChange, isCaptain, onPickCaptain, placeholder,
 }: {
@@ -369,6 +434,7 @@ function PlayerRow({
     </View>
   );
 }
+
 function ReviewCard({
   title, subtitle, list, captainIndex,
 }: { title: string; subtitle: string; list: string[]; captainIndex: number }) {
@@ -418,11 +484,10 @@ function editAt(arr: string[], idx: number, value: string) {
 /* ---------------- styles ---------------- */
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0b0f14' },
+  safe: { flex: 1 },
 
   header: {
     paddingTop: 6, paddingBottom: 12,
-    backgroundColor: '#0b0f14',
     borderBottomWidth: 1, borderBottomColor: '#1e2a3a',
     alignItems: 'center',
   },
@@ -469,7 +534,7 @@ const styles = StyleSheet.create({
 
   card: {
     borderWidth: 1, borderColor: '#1e2a3a',
-    backgroundColor: 'rgba(16,22,30,0.8)',
+    backgroundColor: 'rgba(16,22,30,0.82)',
     borderRadius: 16, padding: 14, marginBottom: 14,
     shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
     ...Platform.select({ android: { elevation: 3 } }),
@@ -489,7 +554,7 @@ const styles = StyleSheet.create({
 
   reviewCard: {
     borderWidth: 1, borderColor: '#1e2a3a',
-    backgroundColor: 'rgba(16,22,30,0.85)',
+    backgroundColor: 'rgba(16,22,30,0.88)',
     borderRadius: 16, padding: 16, marginBottom: 12,
   },
   reviewTitle: { color: '#EAF2F8', fontWeight: '900', fontSize: 16, marginBottom: 6 },
@@ -497,7 +562,6 @@ const styles = StyleSheet.create({
   subtle: { color: '#A8C0D6' },
   playerItem: { color: '#EAF2F8', marginBottom: 2 },
 
-  helpNote: { color: '#9bb4c9', fontSize: 12, marginTop: 4 },
   tip: { color: '#A8C0D6', textAlign: 'center', marginTop: 6 },
 
   footer: { flexDirection: 'row', gap: 10, marginTop: 18 },
@@ -506,4 +570,11 @@ const styles = StyleSheet.create({
   btnSecondary: { backgroundColor: '#1b2430', borderColor: '#283445' },
   btnDisabled: { backgroundColor: '#243142', borderColor: '#2a3a4f' },
   btnText: { color: '#fff', fontWeight: '800', letterSpacing: 1 },
+
+  // small tabs reused for toggle & teams
+  teamTabs: { flexDirection: 'row', gap: 8, marginTop: 10, alignSelf: 'center' },
+  teamTabBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
+  teamTabOn:  { backgroundColor: 'rgba(42,115,214,0.18)', borderColor: '#2A73D6' },
+  teamTabOff: { backgroundColor: '#1b2430', borderColor: '#283445' },
+  teamTabText: { color: '#EAF2F8', fontWeight: '800' },
 });

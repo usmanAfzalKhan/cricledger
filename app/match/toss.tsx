@@ -2,19 +2,21 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Easing,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import GradientBackground from '../components/GradientBackground';
 
 type TeamKey = 'A' | 'B';
 type Call = 'Heads' | 'Tails';
 type Decision = 'Bat' | 'Bowl';
+type TossStep = 1 | 2 | 3 | 4; // caller -> call -> flip -> decision
 
 export default function Toss() {
   const router = useRouter();
@@ -43,6 +45,9 @@ export default function Toss() {
   const capA = normCapIdx(captainAIndex, parsed.A);
   const capB = normCapIdx(captainBIndex, parsed.B);
 
+  // Guided toss stepper
+  const [tStep, setTStep] = useState<TossStep>(1);
+
   // Toss state
   const [caller, setCaller] = useState<TeamKey>('A');
   const [call, setCall] = useState<Call>('Heads');
@@ -52,7 +57,7 @@ export default function Toss() {
   const [winner, setWinner] = useState<TeamKey | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
 
-  // Animation (rotation only — no scale)
+  // Animation
   const spinDeg = useRef(new Animated.Value(0)).current;
   const rotateYFront = spinDeg.interpolate({
     inputRange: [0, 360],
@@ -77,11 +82,11 @@ export default function Toss() {
     setWinner(null);
     setResult(null);
 
-    spinDeg.stopAnimation(); // be safe
+    spinDeg.stopAnimation();
     spinDeg.setValue(0);
 
     const finalCall: Call = Math.random() < 0.5 ? 'Heads' : 'Tails';
-    const fullSpins = 4 + Math.floor(Math.random() * 3); // 4..6 spins
+    const fullSpins = 4 + Math.floor(Math.random() * 3);
     const target = fullSpins * 360 + (finalCall === 'Heads' ? 0 : 180);
 
     Animated.timing(spinDeg, {
@@ -96,6 +101,7 @@ export default function Toss() {
       const callerWon = finalCall === call;
       const w = callerWon ? caller : other(caller);
       setWinner(w);
+      setTStep(4); // move to decision step automatically after flip
     });
   };
 
@@ -119,155 +125,156 @@ export default function Toss() {
     });
   };
 
-  const disablePickers = flipping || tossed;
+  const showCaller = tStep === 1;
+  const showCall   = tStep === 2;
+  const showFlip   = tStep === 3;
+  const showChoice = tStep === 4;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0b0f14' }} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.header}>Team Sheets & Toss</Text>
-        <Text style={styles.umpireNote}>
-          Hand over the device to the umpire to perform the toss.
-        </Text>
-        <Text style={styles.subtle}>
-          Overs: {overs} • {teamA}: {countA} • {teamB}: {countB}
-        </Text>
+    <GradientBackground>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
+          <Text style={styles.header}>Toss</Text>
+          <Text style={styles.umpireNote}>Hand over the device to the umpire to perform the toss.</Text>
+          <Text style={styles.subtle}>Overs: {overs} • {teamA}: {countA} • {teamB}: {countB}</Text>
 
-        {/* Team sheets */}
-        <View style={styles.teamsRow}>
-          <TeamCard title={teamA} list={parsed.A} captainIndex={capA} />
-          <TeamCard title={teamB} list={parsed.B} captainIndex={capB} right />
-        </View>
-
-        {/* Toss controller + coin */}
-        <View style={styles.tossCard}>
-          <Text style={styles.tossTitle}>Coin Toss</Text>
-
-          {/* Selector row */}
-          <View style={styles.rowWrap}>
-            <View style={styles.row}>
-              <Text style={styles.label}>Caller</Text>
-              <View style={styles.segment}>
-                <SegButton disabled={disablePickers} active={caller === 'A'} onPress={() => setCaller('A')}>
-                  {teamA}
-                </SegButton>
-                <SegButton disabled={disablePickers} active={caller === 'B'} onPress={() => setCaller('B')}>
-                  {teamB}
-                </SegButton>
-              </View>
-            </View>
-
-            <View style={[styles.row, { marginTop: 10 }]}>
-              <Text style={styles.label}>Call</Text>
-              <View style={styles.segment}>
-                <SegButton disabled={disablePickers} active={call === 'Heads'} onPress={() => setCall('Heads')}>
-                  Heads
-                </SegButton>
-                <SegButton disabled={disablePickers} active={call === 'Tails'} onPress={() => setCall('Tails')}>
-                  Tails
-                </SegButton>
-              </View>
-            </View>
+          {/* Team sheets (names optional) */}
+          <View style={styles.teamsRow}>
+            <TeamCard title={teamA} list={parsed.A} captainIndex={capA} />
+            <TeamCard title={teamB} list={parsed.B} captainIndex={capB} right />
           </View>
 
-          {/* Big coin */}
-          <Pressable
-            onPress={flipCoin}
-            disabled={flipping}
-            style={{ alignItems: 'center', marginTop: 12 }}
-            android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: true }}
-          >
-            <Animated.View
-              style={[
-                styles.coinShadowWrap,
-                { shadowRadius: coinShadow as any },
-              ]}
-            >
-              {/* HEADS (front) */}
-              <Animated.View
-                style={[
-                  styles.coin,
-                  { transform: [{ perspective: 800 }, { rotateY: rotateYFront }] },
-                ]}
-              >
-                <View style={[styles.face, styles.headsFace]}>
-                  <View style={[styles.faceInnerRing, { borderColor: '#c2981d' }]} />
-                  <Text style={styles.faceTextHeads}>HEADS</Text>
-                </View>
-              </Animated.View>
+          {/* Guided Toss Card */}
+          <View style={styles.tossCard}>
+            <Text style={styles.tossTitle}>Step {tStep} of 4</Text>
 
-              {/* TAILS (back) */}
-              <Animated.View
-                style={[
-                  styles.coin,
-                  styles.coinBack,
-                  { transform: [{ perspective: 800 }, { rotateY: rotateYBack }] },
-                ]}
-              >
-                <View style={[styles.face, styles.tailsFace]}>
-                  <View style={styles.faceContentFlip}>
-                    <View style={[styles.faceInnerRing, { borderColor: '#A6B0BA' }]} />
-                    <Text style={styles.faceTextTails}>TAILS</Text>
+            {showCaller && (
+              <>
+                <Text style={styles.label}>Who calls the toss?</Text>
+                <View style={styles.segment}>
+                  <SegButton active={caller === 'A'} onPress={() => setCaller('A')}>{teamA}</SegButton>
+                  <SegButton active={caller === 'B'} onPress={() => setCaller('B')}>{teamB}</SegButton>
+                </View>
+
+                <View style={styles.stepFooter}>
+                  <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setTStep(2)}>
+                    <Text style={styles.btnText}>NEXT</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+
+            {showCall && (
+              <>
+                <Text style={styles.label}>What’s the call?</Text>
+                <View style={styles.segment}>
+                  <SegButton active={call === 'Heads'} onPress={() => setCall('Heads')}>Heads</SegButton>
+                  <SegButton active={call === 'Tails'} onPress={() => setCall('Tails')}>Tails</SegButton>
+                </View>
+
+                <View style={styles.stepFooter}>
+                  <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => setTStep(1)}>
+                    <Text style={styles.btnText}>BACK</Text>
+                  </Pressable>
+                  <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setTStep(3)}>
+                    <Text style={styles.btnText}>CONTINUE</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+
+            {showFlip && (
+              <>
+                <Text style={[styles.label, { marginBottom: 0 }]}>Flip the coin</Text>
+                <Pressable
+                  onPress={flipCoin}
+                  disabled={flipping}
+                  style={{ alignItems: 'center', marginTop: 12 }}
+                  android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: true }}
+                >
+                  <Animated.View style={[styles.coinShadowWrap, { shadowRadius: coinShadow as any }]}>
+                    {/* HEADS (front) */}
+                    <Animated.View style={[styles.coin, { transform: [{ perspective: 800 }, { rotateY: rotateYFront }] }]}>
+                      <View style={[styles.face, styles.headsFace]}>
+                        <View style={[styles.faceInnerRing, { borderColor: '#c2981d' }]} />
+                        <Text style={styles.faceTextHeads}>HEADS</Text>
+                      </View>
+                    </Animated.View>
+                    {/* TAILS (back) */}
+                    <Animated.View style={[styles.coin, styles.coinBack, { transform: [{ perspective: 800 }, { rotateY: rotateYBack }] }]}>
+                      <View style={[styles.face, styles.tailsFace]}>
+                        <View style={styles.faceContentFlip}>
+                          <View style={[styles.faceInnerRing, { borderColor: '#A6B0BA' }]} />
+                          <Text style={styles.faceTextTails}>TAILS</Text>
+                        </View>
+                      </View>
+                    </Animated.View>
+                  </Animated.View>
+                  <Text style={[styles.flipHint, flipping && { opacity: 0.6 }]}>
+                    {flipping ? 'Flipping…' : tossed ? 'Tap to flip again' : 'Tap coin to flip'}
+                  </Text>
+                </Pressable>
+
+                {tossed && result && (
+                  <>
+                    <View style={styles.resultBox}>
+                      <Text style={styles.resultText}>
+                        Result: <Text style={{ color: '#63E6BE', fontWeight: '900' }}>{result}</Text>
+                      </Text>
+                      <Text style={styles.resultText}>
+                        {(winner === 'A' ? teamA : teamB)} won the toss.
+                      </Text>
+                    </View>
+                    <View style={styles.stepFooter}>
+                      <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setTStep(4)}>
+                        <Text style={styles.btnText}>CONTINUE</Text>
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+
+                {!tossed && (
+                  <View style={styles.stepFooter}>
+                    <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => setTStep(2)}>
+                      <Text style={styles.btnText}>BACK</Text>
+                    </Pressable>
                   </View>
+                )}
+              </>
+            )}
+
+            {showChoice && (
+              <>
+                <Text style={styles.label}>Decision ({winner === 'A' ? teamA : teamB})</Text>
+                <View style={styles.segment}>
+                  <SegButton active={decision === 'Bat'} onPress={() => setDecision('Bat')}>Bat</SegButton>
+                  <SegButton active={decision === 'Bowl'} onPress={() => setDecision('Bowl')}>Bowl</SegButton>
                 </View>
-              </Animated.View>
-            </Animated.View>
+              </>
+            )}
+          </View>
 
-            <Text style={[styles.flipHint, flipping && { opacity: 0.6 }]}>
-              {flipping ? 'Flipping…' : tossed ? 'Tap to flip again' : 'Tap coin to flip'}
-            </Text>
+          {/* Actions */}
+          <View style={styles.footer}>
+            <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => router.back()} disabled={flipping}>
+              <Text style={styles.btnText}>BACK</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.btn, decision ? styles.btnPrimary : styles.btnDisabled]}
+              onPress={startScoring}
+              disabled={!decision || flipping}
+            >
+              <Text style={styles.btnText}>START SCORING</Text>
+            </Pressable>
+          </View>
+
+          {/* Home */}
+          <Pressable style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]} onPress={() => router.replace('/')}>
+            <Text style={styles.btnText}>HOME</Text>
           </Pressable>
-
-          {/* Result */}
-          {tossed && result && (
-            <View style={styles.resultBox}>
-              <Text style={styles.resultText}>
-                Result:&nbsp;
-                <Text style={{ color: '#63E6BE', fontWeight: '900' }}>{result}</Text>
-              </Text>
-              <Text style={styles.resultText}>
-                {(winner === 'A' ? teamA : teamB)} won the toss.
-              </Text>
-            </View>
-          )}
-
-          {/* Decision by winner */}
-          {winner && (
-            <>
-              <Text style={[styles.label, { marginTop: 10 }]}>
-                Decision ({winner === 'A' ? teamA : teamB})
-              </Text>
-              <View style={styles.segment}>
-                <SegButton disabled={!winner || flipping} active={decision === 'Bat'} onPress={() => setDecision('Bat')}>
-                  Bat
-                </SegButton>
-                <SegButton disabled={!winner || flipping} active={decision === 'Bowl'} onPress={() => setDecision('Bowl')}>
-                  Bowl
-                </SegButton>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Actions */}
-        <View style={styles.footer}>
-          <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => router.back()} disabled={flipping}>
-            <Text style={styles.btnText}>BACK</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.btn, decision ? styles.btnPrimary : styles.btnDisabled]}
-            onPress={startScoring}
-            disabled={!decision || flipping}
-          >
-            <Text style={styles.btnText}>START SCORING</Text>
-          </Pressable>
-        </View>
-
-        {/* Home */}
-        <Pressable style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]} onPress={() => router.replace('/')}>
-          <Text style={styles.btnText}>HOME</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
@@ -340,12 +347,7 @@ function other<T extends 'A' | 'B'>(t: T): T { return (t === 'A' ? 'B' : 'A') as
 const styles = StyleSheet.create({
   header: { color: '#EAF2F8', fontSize: 22, fontWeight: '900', alignSelf: 'center' },
   subtle: { color: '#9bb4c9', textAlign: 'center', marginTop: 6 },
-  umpireNote: {
-    textAlign: 'center',
-    color: '#CFE3FF',
-    marginTop: 6,
-    fontWeight: '700',
-  },
+  umpireNote: { textAlign: 'center', color: '#CFE3FF', marginTop: 6, fontWeight: '700' },
 
   teamsRow: { flexDirection: 'row', gap: 6, marginTop: 12 },
   teamCard: {
@@ -365,18 +367,15 @@ const styles = StyleSheet.create({
   },
   tossTitle: { color: '#EAF2F8', fontWeight: '900', marginBottom: 8, textAlign: 'center' },
 
-  rowWrap: { marginTop: 4 },
-  row: { marginTop: 6 },
   label: { color: '#CFE3FF', marginBottom: 6, fontSize: 12, letterSpacing: 0.6 },
 
   segment: { flexDirection: 'row', gap: 8 },
-  segBtn: {
-    flex: 1, alignItems: 'center',
-    paddingVertical: 10, borderRadius: 10, borderWidth: 1,
-  },
+  segBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   segOn: { backgroundColor: 'rgba(42,115,214,0.22)', borderColor: '#2A73D6' },
   segOff: { backgroundColor: '#1b2430', borderColor: '#283445' },
   segText: { color: '#EAF2F8', fontWeight: '800' },
+
+  stepFooter: { flexDirection: 'row', gap: 10, marginTop: 12 },
 
   coinShadowWrap: {
     width: 160, height: 160,
@@ -398,8 +397,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
-  headsFace: { backgroundColor: '#d4af37' }, // gold
-  tailsFace: { backgroundColor: '#C0C7D1' }, // silver
+  headsFace: { backgroundColor: '#d4af37' },
+  tailsFace: { backgroundColor: '#C0C7D1' },
   faceInnerRing: {
     position: 'absolute',
     left: 8, top: 8, right: 8, bottom: 8,
@@ -407,7 +406,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     opacity: 0.9,
   },
-  // flip inner content on the back so text isn't mirrored while rotating
   faceContentFlip: {
     transform: [{ scaleX: -1 }],
     alignItems: 'center',
