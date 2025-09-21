@@ -1,0 +1,24 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Transparent background for flexibility -->
+  <g>
+    <!-- Green ball -->
+    <circle cx="512" cy="512" r="360" fill="#68B984"/>
+    <!-- Cream outer ring (subtle) -->
+    <circle cx="512" cy="512" r="372" fill="none" stroke="#EDEFE6" stroke-width="12"/>
+    <!-- Dark seam -->
+    <rect x="502" y="340" width="20" height="348" rx="10" fill="#0B1220"/>
+    <!-- Subtle cream stitch dashes (optional, minimal) -->
+    <g stroke="#EDEFE6" stroke-width="8" stroke-linecap="round" opacity="0.7">
+      <line x1="470" y1="392" x2="470" y2="420"/>
+      <line x1="470" y1="448" x2="470" y2="476"/>
+      <line x1="470" y1="504" x2="470" y2="532"/>
+      <line x1="470" y1="560" x2="470" y2="588"/>
+      <line x1="554" y1="392" x2="554" y2="420"/>
+      <line x1="554" y1="448" x2="554" y2="476"/>
+      <line x1="554" y1="504" x2="554" y2="532"/>
+      <line x1="554" y1="560" x2="554" y2="588"/>
+    </g>
+  </g>
+  <title>CricLedger Mark</title>
+  <desc>Minimal cricket ball mark in grass green with seam, using #68B984, #EDEFE6, #0B1220.</desc>
+</svg>
