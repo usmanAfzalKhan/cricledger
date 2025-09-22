@@ -1,130 +1,172 @@
-import { Link, useRouter } from "expo-router";
-import React, { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useMatch } from "../../store/MatchContext";
+import * as Haptics from "expo-haptics";
+import { Link, router } from "expo-router";
+import React, { useMemo, useState } from "react";
+import {
+    ImageBackground,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function Setup() {
-  const router = useRouter();
-  const { setSetup, resetAll } = useMatch();
+// same background + global overlays
+import bg from "../../assets/bg/stadium.png";
+import { styles as home } from "../styles/home";
 
-  const [teamAName, setTeamAName] = useState("Team A");
-  const [teamBName, setTeamBName] = useState("Team B");
-  const [overs, setOvers] = useState("6");
-  const [playersA, setPlayersA] = useState("11");
-  const [playersB, setPlayersB] = useState("11");
+// form styles for this screen
+import { styles as s } from "../styles/match";
 
-  const onContinue = () => {
-    const o = Math.max(1, parseInt(overs || "1", 10));
-    const pa = Math.max(1, parseInt(playersA || "1", 10));
-    const pb = Math.max(1, parseInt(playersB || "1", 10));
+export default function MatchSetup() {
+  const [teamAName, setTeamAName] = useState("");
+  const [teamAPlayers, setTeamAPlayers] = useState("");
+  const [teamBName, setTeamBName] = useState("");
+  const [teamBPlayers, setTeamBPlayers] = useState("");
+  const [overs, setOvers] = useState("");
 
-    setSetup({
-      teamAName: teamAName.trim() || "Team A",
-      teamBName: teamBName.trim() || "Team B",
-      overs: o,
-      playersA: pa,
-      playersB: pb,
-      // names are optional; omit so typing stays happy
+  // only require "filled + numeric" (no min/max limits)
+  const isDigits = (v: string) => /^\d+$/.test(v);
+  const isValid = useMemo(() => {
+    return (
+      teamAName.trim().length > 0 &&
+      teamBName.trim().length > 0 &&
+      isDigits(teamAPlayers) &&
+      isDigits(teamBPlayers) &&
+      isDigits(overs)
+    );
+  }, [teamAName, teamBName, teamAPlayers, teamBPlayers, overs]);
+
+  async function onNext() {
+    if (!isValid) return;
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+    router.push({
+      pathname: "/match/summary", // make this screen when you're ready
+      params: {
+        teamAName: teamAName.trim(),
+        teamAPlayers,
+        teamBName: teamBName.trim(),
+        teamBPlayers,
+        overs,
+      },
     });
-
-    router.push("/match/toss");
-  };
+  }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: "padding", android: undefined })}>
-        <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-          <Text style={styles.h1}>New Match</Text>
-          <Text style={styles.label}>Team A name</Text>
-          <TextInput style={styles.input} value={teamAName} onChangeText={setTeamAName} placeholder="Team A" placeholderTextColor="#94a3b8" />
+    <View style={{ flex: 1 }}>
+      <ImageBackground source={bg} resizeMode="cover" style={{ flex: 1 }}>
+        {/* reuse your dim overlays */}
+        <View style={home.scrim} />
+        <View style={home.bgGlow} />
+        <View style={home.bgCorner} />
 
-          <Text style={styles.label}>Team B name</Text>
-          <TextInput style={styles.input} value={teamBName} onChangeText={setTeamBName} placeholder="Team B" placeholderTextColor="#94a3b8" />
+        <SafeAreaView style={[home.safe, { backgroundColor: "transparent" }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            {/* tap outside to dismiss keyboard */}
+            <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+              <ScrollView
+                contentContainerStyle={s.formWrap}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Header: Back + Title */}
+                <View style={s.headerRow}>
+                  <Link href="/" asChild>
+                    <Pressable style={s.backBtn}>
+                      <Text style={s.backIcon}>←</Text>
+                      <Text style={s.backText}>Home</Text>
+                    </Pressable>
+                  </Link>
+                  <Text style={s.title}>Start Match</Text>
+                  <View style={{ width: 64 }} />
+                </View>
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Overs</Text>
-              <TextInput
-                style={styles.input}
-                value={overs}
-                onChangeText={setOvers}
-                keyboardType="number-pad"
-                placeholder="6"
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-            <View style={{ width: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Players in Team A</Text>
-              <TextInput
-                style={styles.input}
-                value={playersA}
-                onChangeText={setPlayersA}
-                keyboardType="number-pad"
-                placeholder="11"
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-          </View>
+                {/* Card */}
+                <View style={s.card}>
+                  {/* Team A row: name + players */}
+                  <Text style={s.label}>Enter Team Name</Text>
+                  <View style={s.row}>
+                    <TextInput
+                      value={teamAName}
+                      onChangeText={setTeamAName}
+                      placeholder="e.g., Panthers"
+                      placeholderTextColor="rgba(237,239,230,0.6)"
+                      style={[s.input, s.grow]}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                    />
+                    <TextInput
+                      value={teamAPlayers}
+                      onChangeText={(v) => setTeamAPlayers(v.replace(/[^0-9]/g, ""))}
+                      placeholder="11"
+                      placeholderTextColor="rgba(237,239,230,0.6)"
+                      style={[s.input, s.playersBox]}
+                      keyboardType="number-pad"
+                      returnKeyType="next"
+                    />
+                  </View>
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Players in Team B</Text>
-              <TextInput
-                style={styles.input}
-                value={playersB}
-                onChangeText={setPlayersB}
-                keyboardType="number-pad"
-                placeholder="11"
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-            <View style={{ width: 12 }} />
-            <View style={{ flex: 1, justifyContent: "flex-end" }}>
-              <Text style={styles.tip}>Player names optional (you can add later).</Text>
-            </View>
-          </View>
+                  {/* Team B row: name + players */}
+                  <Text style={s.label}>Enter Team Name</Text>
+                  <View style={s.row}>
+                    <TextInput
+                      value={teamBName}
+                      onChangeText={setTeamBName}
+                      placeholder="e.g., Tigers"
+                      placeholderTextColor="rgba(237,239,230,0.6)"
+                      style={[s.input, s.grow]}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                    />
+                    <TextInput
+                      value={teamBPlayers}
+                      onChangeText={(v) => setTeamBPlayers(v.replace(/[^0-9]/g, ""))}
+                      placeholder="11"
+                      placeholderTextColor="rgba(237,239,230,0.6)"
+                      style={[s.input, s.playersBox]}
+                      keyboardType="number-pad"
+                      returnKeyType="next"
+                    />
+                  </View>
 
-          <Pressable style={[styles.btn, styles.primary]} onPress={onContinue}>
-            <Text style={styles.btnText}>Continue to Toss</Text>
-          </Pressable>
+                  {/* Overs (single box) */}
+                  <Text style={s.label}>Number of Overs</Text>
+                  <TextInput
+                    value={overs}
+                    onChangeText={(v) => setOvers(v.replace(/[^0-9]/g, ""))}
+                    placeholder="10"
+                    placeholderTextColor="rgba(237,239,230,0.6)"
+                    style={s.input}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                  />
 
-          <View style={{ height: 8 }} />
-          <Link href="/" asChild>
-            <Pressable style={[styles.btn, styles.ghost]} onPress={resetAll}>
-              <Text style={styles.btnText}>Cancel</Text>
+                  {/* Next */}
+                  <Pressable
+                    onPress={onNext}
+                    disabled={!isValid}
+                    style={({ pressed }) => [
+                      s.nextBtn,
+                      !isValid && s.nextDisabled,
+                      pressed && isValid && { opacity: 0.9 },
+                    ]}
+                  >
+                    <Text style={s.nextIcon}>➡️</Text>
+                    <Text style={s.nextText}>Next</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </Pressable>
-          </Link>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </ImageBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0B1220" },
-  wrap: { padding: 16, gap: 10 },
-  h1: { color: "#fff", fontSize: 22, fontWeight: "900", marginBottom: 8 },
-  label: { color: "#cbd5e1", marginBottom: 6, fontSize: 12, letterSpacing: 0.3 },
-  input: {
-    color: "#fff",
-    borderColor: "rgba(255,255,255,0.18)",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "rgba(16,23,42,0.85)",
-  },
-  row: { flexDirection: "row", gap: 12 },
-  btn: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  primary: { backgroundColor: "#4F46E5", borderColor: "#4F46E5" },
-  ghost: { backgroundColor: "#111827" },
-  btnText: { color: "#fff", fontWeight: "800", letterSpacing: 0.3 },
-  tip: { color: "#64748b", fontSize: 12, marginTop: 26 },
-});

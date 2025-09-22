@@ -1,66 +1,56 @@
 // app/match/summary.tsx
+import { Link, useLocalSearchParams } from "expo-router";
 import React from "react";
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
-import { useMatch } from "../../store/MatchContext";
+import { ImageBackground, Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function Summary() {
-  const { setup, innings, matchOver, resetAll } = useMatch();
+import bg from "../../assets/bg/stadium.png";
+import { styles as home } from "../styles/home";
 
-  const teamALabel = setup?.teamAName ?? "Team A";
-  const teamBLabel = setup?.teamBName ?? "Team B";
-  const totalOvers = setup?.overs ?? 0;
-
-  const legalBalls = innings?.legalBalls ?? 0;
-  const over = Math.floor(legalBalls / 6);
-  const ball = legalBalls % 6;
-
-  const runs = innings?.runs ?? 0;
-  const wkts = innings?.wickets ?? 0;
-
-  const resultText = matchOver ? "Match complete" : "—";
+export default function MatchSummary() {
+  const { teamAName, teamAPlayers, teamBName, teamBPlayers, overs } =
+    useLocalSearchParams<{
+      teamAName: string;
+      teamAPlayers: string;
+      teamBName: string;
+      teamBPlayers: string;
+      overs: string;
+    }>();
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.card}>
-        <Text style={styles.h1}>Match Summary</Text>
+    <View style={{ flex: 1 }}>
+      <ImageBackground source={bg} resizeMode="cover" style={{ flex: 1 }}>
+        <View style={home.scrim} />
+        <View style={home.bgGlow} />
+        <View style={home.bgCorner} />
 
-        <Text style={styles.line}>
-          {teamALabel} vs {teamBLabel}
-        </Text>
-        <Text style={styles.line}>Overs: {totalOvers}</Text>
+        <SafeAreaView style={[home.safe, { backgroundColor: "transparent" }]}>
+          <View style={{ flex: 1, padding: 20, justifyContent: "center", gap: 18 }}>
+            <Text style={{ color: "#EDEFE6", fontSize: 22, fontWeight: "800" }}>
+              Match Summary
+            </Text>
 
-        <Text style={styles.line}>
-          Score: {runs}/{wkts} in {over}.{ball}
-        </Text>
+            <Text style={{ color: "#EDEFE6" }}>
+              {teamAName} ({teamAPlayers}) vs {teamBName} ({teamBPlayers})
+            </Text>
+            <Text style={{ color: "#EDEFE6" }}>Overs: {overs}</Text>
 
-        <Text style={styles.line}>Result: {resultText}</Text>
-
-        <Pressable onPress={resetAll} style={[styles.btn, styles.primary]}>
-          <Text style={styles.btnText}>Start New Match</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+            <Link href="/" asChild>
+              <Pressable
+                style={{
+                  backgroundColor: "#68B984",
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: "#0B1220", fontWeight: "800" }}>Back to Home</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b1220", padding: 16 },
-  card: {
-    backgroundColor: "rgba(16,24,40,0.9)",
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-  h1: { color: "#E3E7FF", fontSize: 22, fontWeight: "800", letterSpacing: 0.5, marginBottom: 6 },
-  line: { color: "#CFE3FF", fontSize: 14 },
-  btn: {
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-  },
-  primary: { backgroundColor: "#2A73D6", borderColor: "#2A73D6" },
-  btnText: { color: "#fff", fontWeight: "700", letterSpacing: 0.3 },
-});

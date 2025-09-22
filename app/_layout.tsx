@@ -1,12 +1,12 @@
-// app/_layout.tsx
 import { Stack } from "expo-router";
-import React from "react";
-import MatchProvider from "../store/MatchContext"; // ⬅️ correct relative path
 
 export default function RootLayout() {
   return (
-    <MatchProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </MatchProvider>
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="settings/index" options={{ headerShown: false }} />
+      <Stack.Screen name="match/setup" options={{ headerShown: false }} />
+      <Stack.Screen name="match/summary" options={{ headerShown: false }} />
+    </Stack>
   );
 }
