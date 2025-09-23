@@ -12,6 +12,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="match/setup" />
         <Stack.Screen name="match/players" />
+        <Stack.Screen name="match/lineups" />
         <Stack.Screen name="match/summary" />
       </Stack>
     </GestureHandlerRootView>

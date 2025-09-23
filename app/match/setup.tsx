@@ -1,5 +1,6 @@
+// app/match/setup.tsx
 import * as Haptics from "expo-haptics";
-import { Link, router } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
     ImageBackground,
@@ -22,11 +23,20 @@ import { styles as home } from "../styles/home";
 import { styles as s } from "../styles/match";
 
 export default function MatchSetup() {
-  const [teamAName, setTeamAName] = useState("");
-  const [teamAPlayers, setTeamAPlayers] = useState("");
-  const [teamBName, setTeamBName] = useState("");
-  const [teamBPlayers, setTeamBPlayers] = useState("");
-  const [overs, setOvers] = useState("");
+  // ✅ if returning from Players, restore fields from URL params
+  const p = useLocalSearchParams<{
+    teamAName?: string;
+    teamBName?: string;
+    teamAPlayers?: string;
+    teamBPlayers?: string;
+    overs?: string;
+  }>();
+
+  const [teamAName, setTeamAName] = useState((p.teamAName as string) ?? "");
+  const [teamAPlayers, setTeamAPlayers] = useState((p.teamAPlayers as string) ?? "");
+  const [teamBName, setTeamBName] = useState((p.teamBName as string) ?? "");
+  const [teamBPlayers, setTeamBPlayers] = useState((p.teamBPlayers as string) ?? "");
+  const [overs, setOvers] = useState((p.overs as string) ?? "");
 
   const isDigits = (v: string) => /^\d+$/.test(v);
 
