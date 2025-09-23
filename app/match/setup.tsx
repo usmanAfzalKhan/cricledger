@@ -28,8 +28,8 @@ export default function MatchSetup() {
   const [teamBPlayers, setTeamBPlayers] = useState("");
   const [overs, setOvers] = useState("");
 
-  // only require "filled + numeric" (no min/max limits)
   const isDigits = (v: string) => /^\d+$/.test(v);
+
   const isValid = useMemo(() => {
     return (
       teamAName.trim().length > 0 &&
@@ -46,7 +46,7 @@ export default function MatchSetup() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {}
     router.push({
-      pathname: "/match/summary", // make this screen when you're ready
+      pathname: "/match/players",
       params: {
         teamAName: teamAName.trim(),
         teamAPlayers,
@@ -60,7 +60,6 @@ export default function MatchSetup() {
   return (
     <View style={{ flex: 1 }}>
       <ImageBackground source={bg} resizeMode="cover" style={{ flex: 1 }}>
-        {/* reuse your dim overlays */}
         <View style={home.scrim} />
         <View style={home.bgGlow} />
         <View style={home.bgCorner} />
@@ -70,7 +69,6 @@ export default function MatchSetup() {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={{ flex: 1 }}
           >
-            {/* tap outside to dismiss keyboard */}
             <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
               <ScrollView
                 contentContainerStyle={s.formWrap}
@@ -90,8 +88,8 @@ export default function MatchSetup() {
 
                 {/* Card */}
                 <View style={s.card}>
-                  {/* Team A row: name + players */}
-                  <Text style={s.label}>Enter Team Name</Text>
+                  {/* Team A row */}
+                  <Text style={s.label}>Team A — Enter Team Name</Text>
                   <View style={s.row}>
                     <TextInput
                       value={teamAName}
@@ -102,19 +100,23 @@ export default function MatchSetup() {
                       autoCapitalize="words"
                       returnKeyType="next"
                     />
-                    <TextInput
-                      value={teamAPlayers}
-                      onChangeText={(v) => setTeamAPlayers(v.replace(/[^0-9]/g, ""))}
-                      placeholder="11"
-                      placeholderTextColor="rgba(237,239,230,0.6)"
-                      style={[s.input, s.playersBox]}
-                      keyboardType="number-pad"
-                      returnKeyType="next"
-                    />
+                    <View style={{ width: 10 }} />
+                    <View style={{ flexShrink: 0, minWidth: 84 }}>
+                      <Text style={[s.label, { marginBottom: 6 }]}># of players</Text>
+                      <TextInput
+                        value={teamAPlayers}
+                        onChangeText={(v) => setTeamAPlayers(v.replace(/[^0-9]/g, ""))}
+                        placeholder="11"
+                        placeholderTextColor="rgba(237,239,230,0.6)"
+                        style={[s.input, s.playersBox]}
+                        keyboardType="number-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
                   </View>
 
-                  {/* Team B row: name + players */}
-                  <Text style={s.label}>Enter Team Name</Text>
+                  {/* Team B row */}
+                  <Text style={s.label}>Team B — Enter Team Name</Text>
                   <View style={s.row}>
                     <TextInput
                       value={teamBName}
@@ -125,18 +127,22 @@ export default function MatchSetup() {
                       autoCapitalize="words"
                       returnKeyType="next"
                     />
-                    <TextInput
-                      value={teamBPlayers}
-                      onChangeText={(v) => setTeamBPlayers(v.replace(/[^0-9]/g, ""))}
-                      placeholder="11"
-                      placeholderTextColor="rgba(237,239,230,0.6)"
-                      style={[s.input, s.playersBox]}
-                      keyboardType="number-pad"
-                      returnKeyType="next"
-                    />
+                    <View style={{ width: 10 }} />
+                    <View style={{ flexShrink: 0, minWidth: 84 }}>
+                      <Text style={[s.label, { marginBottom: 6 }]}># of players</Text>
+                      <TextInput
+                        value={teamBPlayers}
+                        onChangeText={(v) => setTeamBPlayers(v.replace(/[^0-9]/g, ""))}
+                        placeholder="11"
+                        placeholderTextColor="rgba(237,239,230,0.6)"
+                        style={[s.input, s.playersBox]}
+                        keyboardType="number-pad"
+                        returnKeyType="next"
+                      />
+                    </View>
                   </View>
 
-                  {/* Overs (single box) */}
+                  {/* Overs */}
                   <Text style={s.label}>Number of Overs</Text>
                   <TextInput
                     value={overs}
