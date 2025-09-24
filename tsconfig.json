@@ -2,9 +2,12 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "jsx": "react-jsx",
+    "types": ["react", "react-native", "react-native-svg"],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "skipLibCheck": true
   },
   "include": [
     "**/*.ts",
