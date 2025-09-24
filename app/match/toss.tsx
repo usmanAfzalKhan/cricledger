@@ -85,6 +85,7 @@ export default function TossScreen() {
   const [hasTossed, setHasTossed] = useState(false);
   const [resultFace, setResultFace] = useState<Face | null>(null);
   const [winner, setWinner] = useState<"A" | "B" | null>(null);
+  const [decision, setDecision] = useState<Decision | null>(null);
 
   // Animate angle (0..360)
   const angle = Animated.modulo(
@@ -97,15 +98,15 @@ export default function TossScreen() {
     outputRange: ["0deg", "360deg"],
   });
 
-  // Cross-fade faces so Android never shows mirrored text
+  // 💡 More forgiving cross-fade ranges so TAILS never looks "empty" on some devices
   const frontOpacity = angle.interpolate({
-    inputRange: [0, 90, 180, 270, 360],
-    outputRange: [1, 0, 0, 0, 1],
+    inputRange: [0, 60, 120, 180, 240, 300, 360],
+    outputRange: [1, 1, 0, 0, 0, 1, 1],
     extrapolate: "clamp",
   });
   const backOpacity = angle.interpolate({
-    inputRange: [0, 90, 180, 270, 360],
-    outputRange: [0, 0, 1, 0, 0],
+    inputRange: [0, 60, 120, 180, 240, 300, 360],
+    outputRange: [0, 0, 1, 1, 1, 0, 0],
     extrapolate: "clamp",
   });
 
@@ -128,8 +129,9 @@ export default function TossScreen() {
     setCall(side);
     setResultFace(null);
     setWinner(null);
+    setDecision(null);
 
-    const deg = side === "HEADS" ? 0 : 180; // <-- orient to the chosen face
+    const deg = side === "HEADS" ? 0 : 180; // orient to the chosen face
     setBaseDeg(deg);
     fromDeg.setValue(deg);
     deltaDeg.setValue(0);
@@ -153,6 +155,7 @@ export default function TossScreen() {
     setIsTossing(true);
     setResultFace(null);
     setWinner(null);
+    setDecision(null);
 
     Animated.timing(progress, {
       toValue: 1,
@@ -178,8 +181,13 @@ export default function TossScreen() {
     });
   }
 
-  function onChoose(decision: Decision) {
-    if (!winner || !resultFace || !call) return;
+  function onChoose(dec: Decision) {
+    if (!winner) return;
+    setDecision(dec);
+  }
+
+  function onStartGame() {
+    if (!winner || !resultFace || !call || !decision) return;
     router.push({
       pathname: "/match/scoring",
       params: {
@@ -190,7 +198,7 @@ export default function TossScreen() {
         decision,
       } as Record<string, string>,
     });
-    Alert.alert("Toss Decision", `${winner === "A" ? teamAName : teamBName} chose to ${decision} first.`);
+    Alert.alert("Starting Match", `${winner === "A" ? teamAName : teamBName} will ${decision.toLowerCase()} first.`);
   }
 
   const winnerName = winner === "A" ? teamAName : winner === "B" ? teamBName : "";
@@ -327,13 +335,52 @@ export default function TossScreen() {
                 <View style={s.card}>
                   <Text style={s.sectionTitle}>{winnerName} chooses</Text>
                   <View style={s.actionsRow}>
-                    <Pressable onPress={() => onChoose("Bat")} style={[s.actionBtn, s.actionBtnPrimary]}>
-                      <Text style={s.actionTextPrimary}>Bat first</Text>
+                    <Pressable
+                      onPress={() => onChoose("Bat")}
+                      style={[
+                        s.actionBtn,
+                        decision === "Bat" ? s.actionBtnPrimary : s.actionBtnGhost,
+                      ]}
+                    >
+                      <Text style={decision === "Bat" ? s.actionTextPrimary : s.actionTextGhost}>
+                        Bat first
+                      </Text>
                     </Pressable>
-                    <Pressable onPress={() => onChoose("Bowl")} style={[s.actionBtn, s.actionBtnGhost]}>
-                      <Text style={s.actionTextGhost}>Bowl first</Text>
+
+                    <Pressable
+                      onPress={() => onChoose("Bowl")}
+                      style={[
+                        s.actionBtn,
+                        decision === "Bowl" ? s.actionBtnPrimary : s.actionBtnGhost,
+                      ]}
+                    >
+                      <Text style={decision === "Bowl" ? s.actionTextPrimary : s.actionTextGhost}>
+                        Bowl first
+                      </Text>
                     </Pressable>
                   </View>
+
+                  {decision && (
+                    <Text style={s.smallNote}>
+                      {winnerName} chooses to {decision.toLowerCase()} first.
+                    </Text>
+                  )}
+
+                  {decision && (
+                    <Pressable
+                      onPress={onStartGame}
+                      style={[
+                        s.tossBtn,
+                        {
+                          marginTop: 12,
+                          alignSelf: "center",
+                          backgroundColor: "#E53935",
+                        },
+                      ]}
+                    >
+                      <Text style={[s.tossBtnText, { color: "#fff" }]}>Start Game</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
 
@@ -366,79 +413,79 @@ function CoinPlate({
 
   return (
     <Svg width={COIN_W} height={COIN_W} viewBox={`0 0 ${COIN_W} ${COIN_W}`}>
-    <Defs>
-      <RadialGradient id={`${label}-base`} cx="48%" cy="44%" r="70%">
-        <Stop offset="0%" stopColor="#FFF6D2" />
-        <Stop offset="55%" stopColor="#DCC877" />
-        <Stop offset="100%" stopColor="#9A8441" />
-      </RadialGradient>
-      <LinearGradient id={`${label}-wash`} x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#fff8d9" stopOpacity={0.35} />
-        <Stop offset="50%" stopColor="#c5ad63" stopOpacity={0.15} />
-        <Stop offset="100%" stopColor="#6f5e2b" stopOpacity={0.35} />
-      </LinearGradient>
-      <LinearGradient id={`${label}-rim`} x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#FFF0BE" />
-        <Stop offset="50%" stopColor="#CDB571" />
-        <Stop offset="100%" stopColor="#6C5A28" />
-      </LinearGradient>
-      <LinearGradient id={`${label}-emb`} x1="0%" y1="0%" x2="0%" y2="100%">
-        <Stop offset="0%" stopColor="#000" stopOpacity={0.22} />
-        <Stop offset="48%" stopColor="#000" stopOpacity={0.06} />
-        <Stop offset="52%" stopColor="#fff" stopOpacity={0.22} />
-        <Stop offset="100%" stopColor="#fff" stopOpacity={0.12} />
-      </LinearGradient>
-    </Defs>
+      <Defs>
+        <RadialGradient id={`${label}-base`} cx="48%" cy="44%" r="70%">
+          <Stop offset="0%" stopColor="#FFF6D2" />
+          <Stop offset="55%" stopColor="#DCC877" />
+          <Stop offset="100%" stopColor="#9A8441" />
+        </RadialGradient>
+        <LinearGradient id={`${label}-wash`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#fff8d9" stopOpacity={0.35} />
+          <Stop offset="50%" stopColor="#c5ad63" stopOpacity={0.15} />
+          <Stop offset="100%" stopColor="#6f5e2b" stopOpacity={0.35} />
+        </LinearGradient>
+        <LinearGradient id={`${label}-rim`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#FFF0BE" />
+          <Stop offset="50%" stopColor="#CDB571" />
+          <Stop offset="100%" stopColor="#6C5A28" />
+        </LinearGradient>
+        <LinearGradient id={`${label}-emb`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <Stop offset="0%" stopColor="#000" stopOpacity={0.22} />
+          <Stop offset="48%" stopColor="#000" stopOpacity={0.06} />
+          <Stop offset="52%" stopColor="#fff" stopOpacity={0.22} />
+          <Stop offset="100%" stopColor="#fff" stopOpacity={0.12} />
+        </LinearGradient>
+      </Defs>
 
-    <Circle cx={cx} cy={cy} r={R} fill={`url(#${label}-base)`} />
-    <Path d={`M 0 0 H ${COIN_W} V ${COIN_W} H 0 Z`} fill={`url(#${label}-wash)`} opacity={0.7} />
+      <Circle cx={cx} cy={cy} r={R} fill={`url(#${label}-base)`} />
+      <Path d={`M 0 0 H ${COIN_W} V ${COIN_W} H 0 Z`} fill={`url(#${label}-wash)`} opacity={0.7} />
 
-    <Circle cx={cx} cy={cy} r={R - 8} stroke={`url(#${label}-rim)`} strokeWidth={3} fill="none" />
-    <Circle cx={cx} cy={cy} r={R + 6} stroke={`url(#${label}-rim)`} strokeWidth={4} fill="none" />
+      <Circle cx={cx} cy={cy} r={R - 8} stroke={`url(#${label}-rim)`} strokeWidth={3} fill="none" />
+      <Circle cx={cx} cy={cy} r={R + 6} stroke={`url(#${label}-rim)`} strokeWidth={4} fill="none" />
 
-    {Array.from({ length: 72 }).map((_, i) => {
-      const a = (i * Math.PI * 2) / 72;
-      const r1 = R + 2;
-      const r2 = R + 6;
-      const x1 = cx + r1 * Math.cos(a);
-      const y1 = cy + r1 * Math.sin(a);
-      const x2 = cx + r2 * Math.cos(a);
-      const y2 = cy + r2 * Math.sin(a);
-      return (
-        <Path
-          key={i}
-          d={`M ${x1} ${y1} L ${x2} ${y2}`}
-          stroke="#6C5B28"
-          strokeOpacity={0.35}
-          strokeWidth={1}
-        />
-      );
-    })}
+      {Array.from({ length: 72 }).map((_, i) => {
+        const a = (i * Math.PI * 2) / 72;
+        const r1 = R + 2;
+        const r2 = R + 6;
+        const x1 = cx + r1 * Math.cos(a);
+        const y1 = cy + r1 * Math.sin(a);
+        const x2 = cx + r2 * Math.cos(a);
+        const y2 = cy + r2 * Math.sin(a);
+        return (
+          <Path
+            key={i}
+            d={`M ${x1} ${y1} L ${x2} ${y2}`}
+            stroke="#6C5B28"
+            strokeOpacity={0.35}
+            strokeWidth={1}
+          />
+        );
+      })}
 
-    <SvgText
-      x={cx}
-      y={cy - R * 0.46}
-      fontSize={R * 0.28}
-      fontWeight="800"
-      fill="#4D3F18"
-      opacity={0.92}
-      textAnchor="middle"
-      letterSpacing="2"
-    >
-      {label}
-    </SvgText>
+      <SvgText
+        x={cx}
+        y={cy - R * 0.46}
+        fontSize={R * 0.28}
+        fontWeight="800"
+        fill="#4D3F18"
+        opacity={0.92}
+        textAnchor="middle"
+        letterSpacing="2"
+      >
+        {label}
+      </SvgText>
 
-    <G>{children}</G>
+      <G>{children}</G>
 
-    <Path
-      d={`M ${cx - R * 0.78} ${cy - R * 0.24} A ${R * 0.95} ${R * 0.95} 0 0 1 ${cx + R * 0.78} ${cy - R * 0.38}`}
-      stroke="#FFF7D6"
-      strokeOpacity={0.5}
-      strokeWidth={2}
-      fill="none"
-    />
-    <Circle cx={cx} cy={cy} r={R - 12} stroke="#000" strokeOpacity={0.08} strokeWidth={4} fill="none" />
-  </Svg>
+      <Path
+        d={`M ${cx - R * 0.78} ${cy - R * 0.24} A ${R * 0.95} ${R * 0.95} 0 0 1 ${cx + R * 0.78} ${cy - R * 0.38}`}
+        stroke="#FFF7D6"
+        strokeOpacity={0.5}
+        strokeWidth={2}
+        fill="none"
+      />
+      <Circle cx={cx} cy={cy} r={R - 12} stroke="#000" strokeOpacity={0.08} strokeWidth={4} fill="none" />
+    </Svg>
   );
 }
 
