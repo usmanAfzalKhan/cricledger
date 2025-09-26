@@ -18,12 +18,11 @@ import bg from "../../assets/bg/stadium.png";
 import { styles as home, THEME } from "../styles/home";
 import { styles as s } from "../styles/scoring";
 
-import { BallIcon, BatIcon } from "../../components/scoring/Icons";
 import { OverProgress, Pip } from "../../components/scoring/OverProgress";
 import { PadKey, RunPad } from "../../components/scoring/RunPad";
 import { SelectModal } from "../../components/scoring/SelectModal";
 
-/** AsyncStorage shim (keeps this file compiling if you haven’t installed it yet) */
+/** AsyncStorage shim (safe if the package isn't installed yet) */
 type StorageLike = { setItem(k: string, v: string): Promise<void>; getItem(k: string): Promise<string | null> };
 const Storage: StorageLike = { async setItem(){}, async getItem(){ return null; } };
 
@@ -71,8 +70,7 @@ async function save(state: MatchState) { try { await Storage.setItem(KEY, JSON.s
 async function load(): Promise<MatchState | null> { try { const raw = await Storage.getItem(KEY); return raw ? (JSON.parse(raw) as MatchState) : null; } catch { return null; } }
 
 /* ==============================
-   THEMED PILL PICKER MODAL (local)
-   Used for: Striker / Non-striker / Bowler + Dismissal type
+   Themed pill picker modal (close ✕ top-right)
    ============================== */
 type PickerOpt = { label: string; value: string | number; disabled?: boolean };
 function PillPickerModal({
@@ -91,22 +89,20 @@ function PillPickerModal({
             maxHeight: "80%",
           }}
         >
-          {/* Header row with pretty close */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 16, fontWeight: "900" }}>{title}</Text>
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [{
                 paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-                backgroundColor: pressed ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)",
-                borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
+                backgroundColor: pressed ? "rgba(255,95,95,0.18)" : "rgba(255,255,255,0.06)",
+                borderWidth: 1, borderColor: pressed ? THEME.ACCENT : "rgba(255,255,255,0.18)",
               }]}
             >
-              <Text style={{ color: "#fff", fontWeight: "900" }}>×</Text>
+              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>✕</Text>
             </Pressable>
           </View>
 
-          {/* Options as full-width pills */}
           <ScrollView style={{ maxHeight: "70%" }}>
             <View style={{ gap: 10 }}>
               {options.map((o) => (
@@ -128,7 +124,6 @@ function PillPickerModal({
             </View>
           </ScrollView>
 
-          {/* Footer close (secondary) */}
           <Pressable
             onPress={onClose}
             style={({ pressed }) => [{
@@ -149,7 +144,7 @@ function PillPickerModal({
 }
 
 export default function Scoring() {
-  // ===== params from players/toss
+  // params from players/toss
   const p = useLocalSearchParams<{
     teamAName?: string; teamBName?: string; teamA?: string; teamB?: string; tossWinner?: "A" | "B"; decision?: "Bat" | "Bowl";
   }>();
@@ -178,7 +173,7 @@ export default function Scoring() {
   }));
   const inn = state.innings[state.inningsIndex];
 
-  // Toast + strip pulse
+  // toast + strip pulse
   const [toast, setToast] = useState<string>("");
   const toastAnim = useRef(new Animated.Value(0)).current;
   const stripAck = useRef(new Animated.Value(0)).current;
@@ -207,10 +202,6 @@ export default function Scoring() {
   const bowler = inn.bowlerIdx !== null ? inn.bowlers[inn.bowlerIdx] : null;
   const totalLegal = inn.completedOvers * 6 + inn.legalBalls;
   const currRR = rr(inn.runs, totalLegal);
-  const target = state.target;
-  const reqRR = state.inningsIndex === 1 && target !== undefined
-    ? (inn.runs >= target ? 0 : (target - inn.runs) / (((20 - inn.completedOvers - (inn.legalBalls > 0 ? 1 : 0)) * 6 + (6 - inn.legalBalls)) / 6))
-    : undefined;
 
   // UI state
   const [openStriker, setOpenStriker] = useState(false);
@@ -221,14 +212,10 @@ export default function Scoring() {
   const [openWicket, setOpenWicket] = useState(false);
   const [openWhoOut, setOpenWhoOut] = useState<null | "striker" | "nonStriker">(null);
 
-  // NEW: themed dismissal picker modal
   const [openDismissal, setOpenDismissal] = useState(false);
-
   const [openCatchFielder, setOpenCatchFielder] = useState(false);
   const [openRunOutFielder, setOpenRunOutFielder] = useState(false);
   const [incomingBatterOpen, setIncomingBatterOpen] = useState(false);
-  const [dismissalType, setDismissalType] = useState<Dismissal | null>(null);
-  const [sheetTab, setSheetTab] = useState<"i1" | "i2" | "so">("i1");
 
   function setInn(up: (i: InningsState) => void) {
     setState(prev => {
@@ -252,8 +239,9 @@ export default function Scoring() {
     } else { i.hatTrickCandidate = null; }
   }
   function endOver(i: InningsState, lastBallOdd: boolean) {
+    // Correct logic: at over end, swap strike *only if* last ball was even
     i.completedOvers += 1; i.legalBalls = 0;
-    swapStrike(i); if (lastBallOdd) swapStrike(i);
+    if (!lastBallOdd) { swapStrike(i); }
     i.prevBowlerIdx = i.bowlerIdx; i.bowlerIdx = null; setOpenBowler(true);
   }
   function pushUndo() { undoRef.current.push(JSON.stringify(state)); }
@@ -272,9 +260,15 @@ export default function Scoring() {
       if (i.strikerIdx !== null) { i.batters[i.strikerIdx].runs += n; i.batters[i.strikerIdx].balls += 1; ensureMilestones(i, i.strikerIdx); }
       if (i.bowlerIdx !== null) { i.bowlers[i.bowlerIdx].conceded += n; i.bowlers[i.bowlerIdx].legalBalls += 1; }
       i.runs += n; i.legalBalls += 1;
-      if (n % 2 === 1) swapStrike(i);
+
+      const isOverEnd = i.legalBalls === 6;
+      if (isOverEnd) {
+        endOver(i, n % 2 === 1);
+      } else {
+        if (n % 2 === 1) swapStrike(i);
+      }
+
       onLegalBallComplete(i, false);
-      if (i.legalBalls === 6) endOver(i, n % 2 === 1);
       i.freeHit = false;
     });
   }
@@ -291,9 +285,16 @@ export default function Scoring() {
         const v = Math.max(1, Math.min(6, plus)) as 1 | 2 | 3 | 4 | 5 | 6;
         if (kind === "B") i.pips.push({ t: "b", v }); else i.pips.push({ t: "lb", v });
         i.runs += v; if (i.bowlerIdx !== null) { i.bowlers[i.bowlerIdx].conceded += v; i.bowlers[i.bowlerIdx].legalBalls += 1; }
-        i.legalBalls += 1; if (v % 2 === 1) swapStrike(i);
+        i.legalBalls += 1;
+
+        const isOverEnd = i.legalBalls === 6;
+        if (isOverEnd) {
+          endOver(i, v % 2 === 1);
+        } else {
+          if (v % 2 === 1) swapStrike(i);
+        }
+
         onLegalBallComplete(i, false);
-        if (i.legalBalls === 6) endOver(i, v % 2 === 1);
         i.freeHit = false;
       }
     });
@@ -308,7 +309,9 @@ export default function Scoring() {
       if (how === "Caught" && fielder) b.out.catcher = fielder; if (how === "Run-out" && fielder) b.out.runOutBy = fielder;
       if (i.freeHit && how !== "Run-out") { b.out = undefined; } else { i.wickets += 1; }
       const bowlerWicket = how === "Bowled" || how === "Caught"; onLegalBallComplete(i, bowlerWicket);
-      setIncomingBatterOpen(true); if (i.legalBalls === 6) endOver(i, false); i.freeHit = false;
+      setIncomingBatterOpen(true);
+      if (i.legalBalls === 6) endOver(i, false);
+      i.freeHit = false;
     });
   }
 
@@ -346,7 +349,7 @@ export default function Scoring() {
   }
   function declareFlow(which: "striker" | "nonStriker") { setIncomingBatterOpen(true); setOpenWhoOut(which); }
 
-  // Render
+  // render
   const stripStyle = {
     transform: [{ scale: stripAck.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }],
   };
@@ -364,10 +367,9 @@ export default function Scoring() {
           </View>
 
           {needSetup ? (
-            // On-theme setup card (pills)
             <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
               <View style={{ padding: 14, backgroundColor: "rgba(12,18,24,0.65)", borderWidth: 1, borderColor: THEME.BORDER, borderRadius: 16 }}>
-                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 16, fontWeight: "800", marginBottom: 10 }}>Choose openers & bowler</Text>
+                <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 16, fontWeight: "800", marginBottom: 10 }}>Select openers & bowler</Text>
 
                 <Text style={{ color: THEME.TEXT_MUTED, fontSize: 12, marginBottom: 6 }}>Striker</Text>
                 <Pressable onPress={() => setOpenStriker(true)} style={pillFieldStyle}>
@@ -391,21 +393,21 @@ export default function Scoring() {
             </View>
           ) : (
             <>
-              {/* TV strip card */}
+              {/* TV strip */}
               <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
                 <Animated.View style={[{ padding: 14, backgroundColor: "rgba(12,18,24,0.65)", borderWidth: 1, borderColor: THEME.BORDER, borderRadius: 16 }, stripStyle]}>
                   <View style={s.stripRow}>
                     <Text style={s.stripLine}>
                       {inn.battingTeamName} {inn.runs}/{inn.wickets} <Text style={s.sep}>|</Text>{" "}
-                      <Text style={s.name}><BatIcon /> {striker?.name}</Text>{" "}
+                      <Text style={[s.name, { color: THEME.ACCENT }]}>🏏 {striker?.name}</Text>{" "}
                       <Text style={s.sep}>  </Text>
                       <Text style={s.name}>{nonStriker?.name}</Text>{" "}
                       <Text style={s.sep}>|</Text>{" "}
-                      <Text style={s.name}><BallIcon /> {bowler?.name} {ovText(inn.completedOvers, inn.legalBalls)}</Text>
+                      <Text style={[s.name, { color: "#ff6666" }]}>🔴 {bowler?.name} {ovText(inn.completedOvers, inn.legalBalls)}</Text>
                     </Text>
                   </View>
                   <Text style={[s.stripSub, { marginTop: 6 }]}>
-                    Run Rate: {toTwo(currRR)}{state.inningsIndex === 1 && (reqRR !== undefined) && (<>   |   Req RR: {toTwo(reqRR)}</>)}
+                    Run Rate: {toTwo(currRR)}
                   </Text>
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                     {!!inn.hatTrickCandidate && inn.hatTrickCandidate.chain === 2 && (<View style={s.chip}><Text style={s.chipText}>HATTRICK BALL</Text></View>)}
@@ -439,8 +441,7 @@ export default function Scoring() {
           <Text style={s.toastText}>{toast}</Text>
         </Animated.View>
 
-        {/* ====== Pickers (themed where requested) ====== */}
-        {/* Striker / Non-striker / Bowler use PillPickerModal now */}
+        {/* Pickers */}
         <PillPickerModal
           open={openStriker}
           title="Select Striker"
@@ -465,7 +466,7 @@ export default function Scoring() {
           onSelect={(v) => { setOpenBowler(false); setInn(i => { i.bowlerIdx = Number(v); }); }}
         />
 
-        {/* Extras picker (kept your existing SelectModal) */}
+        {/* Extras (uses SelectModal) */}
         <SelectModal
           open={!!openPlusPicker}
           title={openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd" ? `${openPlusPicker?.kind} + (overthrows)` : `${openPlusPicker?.kind} (1–6)`}
@@ -477,7 +478,7 @@ export default function Scoring() {
           onSelect={(v: string | number) => { const plus = Number(v); if (!openPlusPicker) return; const k = openPlusPicker.kind; setOpenPlusPicker(null); addExtras(k, plus); }}
         />
 
-        {/* Who is out? (kept your existing SelectModal) */}
+        {/* Who is out? */}
         <SelectModal
           open={openWicket}
           title="Who is out?"
@@ -489,12 +490,11 @@ export default function Scoring() {
           onSelect={(v: string | number) => {
             setOpenWicket(false);
             setOpenWhoOut(v as "striker" | "nonStriker");
-            // Open themed dismissal modal (replaces the old Alert)
             setOpenDismissal(true);
           }}
         />
 
-        {/* NEW: Dismissal type — themed modal */}
+        {/* Dismissal type (themed) */}
         <PillPickerModal
           open={openDismissal}
           title="Dismissal type"
@@ -507,19 +507,13 @@ export default function Scoring() {
           onSelect={(v) => {
             const how = String(v) as Dismissal;
             setOpenDismissal(false);
-            if (how === "Caught") {
-              setDismissalType("Caught");
-              setOpenCatchFielder(true);
-            } else if (how === "Run-out") {
-              setDismissalType("Run-out");
-              setOpenRunOutFielder(true);
-            } else {
-              confirmDismissal("Bowled");
-            }
+            if (how === "Caught") { setOpenCatchFielder(true); }
+            else if (how === "Run-out") { setOpenRunOutFielder(true); }
+            else { confirmDismissal("Bowled"); }
           }}
         />
 
-        {/* Caught / Run-out fielders (kept existing SelectModal to save scope) */}
+        {/* Fielders */}
         <SelectModal
           open={openCatchFielder}
           title="Who took the catch?"
@@ -542,7 +536,7 @@ export default function Scoring() {
           }}
         />
 
-        {/* Incoming batter (unchanged) */}
+        {/* Incoming batter */}
         <SelectModal
           open={incomingBatterOpen}
           title="Select incoming batter"
@@ -557,7 +551,7 @@ export default function Scoring() {
           }}
         />
 
-        {/* Team sheets overlay preserved */}
+        {/* Team sheets overlay */}
         {inn.showSheets && (
           <>
             <Pressable style={s.sheetBackdrop} onPress={() => setInn(i => { i.showSheets = false; })} />
@@ -620,7 +614,7 @@ export default function Scoring() {
   }
 }
 
-/* Small pill field styles for the setup card */
+/* small pill field styles */
 const pillFieldStyle = {
   paddingVertical: 12,
   borderRadius: 999 as const,
