@@ -98,7 +98,7 @@ export default function TossScreen() {
     outputRange: ["0deg", "360deg"],
   });
 
-  // 💡 More forgiving cross-fade ranges so TAILS never looks "empty" on some devices
+  // Forgiving cross-fade ranges so TAILS never looks empty
   const frontOpacity = angle.interpolate({
     inputRange: [0, 60, 120, 180, 240, 300, 360],
     outputRange: [1, 1, 0, 0, 0, 1, 1],
@@ -163,7 +163,6 @@ export default function TossScreen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
-      // Park the coin explicitly on the OUTCOME face so UI always matches result.
       const nextBase = outcome === "HEADS" ? 0 : 180;
       setBaseDeg(nextBase);
       fromDeg.setValue(nextBase);
@@ -198,7 +197,10 @@ export default function TossScreen() {
         decision,
       } as Record<string, string>,
     });
-    Alert.alert("Starting Match", `${winner === "A" ? teamAName : teamBName} will ${decision.toLowerCase()} first.`);
+    Alert.alert(
+      "Starting Match",
+      `${winner === "A" ? teamAName : teamBName} will ${decision.toLowerCase()} first.`
+    );
   }
 
   const winnerName = winner === "A" ? teamAName : winner === "B" ? teamBName : "";
@@ -337,10 +339,7 @@ export default function TossScreen() {
                   <View style={s.actionsRow}>
                     <Pressable
                       onPress={() => onChoose("Bat")}
-                      style={[
-                        s.actionBtn,
-                        decision === "Bat" ? s.actionBtnPrimary : s.actionBtnGhost,
-                      ]}
+                      style={[s.actionBtn, decision === "Bat" ? s.actionBtnPrimary : s.actionBtnGhost]}
                     >
                       <Text style={decision === "Bat" ? s.actionTextPrimary : s.actionTextGhost}>
                         Bat first
@@ -349,10 +348,7 @@ export default function TossScreen() {
 
                     <Pressable
                       onPress={() => onChoose("Bowl")}
-                      style={[
-                        s.actionBtn,
-                        decision === "Bowl" ? s.actionBtnPrimary : s.actionBtnGhost,
-                      ]}
+                      style={[s.actionBtn, decision === "Bowl" ? s.actionBtnPrimary : s.actionBtnGhost]}
                     >
                       <Text style={decision === "Bowl" ? s.actionTextPrimary : s.actionTextGhost}>
                         Bowl first
