@@ -1,18 +1,18 @@
 // app/match/players.tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    ImageBackground,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { THEME } from "../styles/home";
@@ -48,7 +48,7 @@ export default function PlayersScreen() {
     teamBName?: string;
     teamAPlayers?: string;
     teamBPlayers?: string;
-    overs?: string;
+    overs?: string; // ✅ carry overs through
     teamA?: string;
     teamB?: string;
     captainA?: string;
@@ -57,6 +57,7 @@ export default function PlayersScreen() {
 
   const teamALabel = (params.teamAName as string)?.trim() || "Team A";
   const teamBLabel = (params.teamBName as string)?.trim() || "Team B";
+  const overs = (params.overs as string) ?? ""; // ✅
 
   const plannedA0 = toInt(params.teamAPlayers, 6);
   const plannedB0 = toInt(params.teamBPlayers, 6);
@@ -212,6 +213,7 @@ export default function PlayersScreen() {
         captainB: captainB != null ? String(captainB) : "",
         teamAName: teamALabel,
         teamBName: teamBLabel,
+        overs, // ✅ pass overs forward
       },
     });
   };
@@ -294,7 +296,7 @@ export default function PlayersScreen() {
                           teamBName: teamBLabel,
                           teamAPlayers: String(plannedA),
                           teamBPlayers: String(plannedB),
-                          overs: (params.overs as string) ?? "",
+                          overs, // ✅ keep overs on back
                         },
                       })
                     }

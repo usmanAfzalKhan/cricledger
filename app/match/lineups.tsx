@@ -1,6 +1,6 @@
 // app/match/lineups.tsx
 import { Link, useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   ImageBackground,
   Pressable,
@@ -22,6 +22,7 @@ type Params = {
   captainB?: string;        // index string
   teamAName?: string;       // optional
   teamBName?: string;       // optional
+  overs?: string;           // ✅ carry overs forward
 };
 
 export default function Lineups() {
@@ -29,6 +30,7 @@ export default function Lineups() {
 
   const teamAName = (p.teamAName ?? "Team A") as string;
   const teamBName = (p.teamBName ?? "Team B") as string;
+  const overs = (p.overs as string) ?? ""; // ✅
 
   const teamA: string[] = useMemo(() => {
     try { return JSON.parse((p.teamA as string) ?? "[]"); } catch { return []; }
@@ -81,6 +83,7 @@ export default function Lineups() {
                     teamBName,
                     teamAPlayers: String(teamA.length),
                     teamBPlayers: String(teamB.length),
+                    overs, // ✅ keep overs when going back
                   },
                 }}
                 asChild
@@ -91,16 +94,14 @@ export default function Lineups() {
               <View style={{ width: 40 }} />
             </View>
 
-            {/* Versus banner */}
-{/* Versus banner (perfectly centered) */}
-<View style={styles.vsCard}>
-  <Text style={styles.teamTitleLeft} numberOfLines={1}>{teamAName}</Text>
-  <View style={styles.vsPill}>
-    <Text style={styles.vsText}>VS</Text>
-  </View>
-  <Text style={styles.teamTitleRight} numberOfLines={1}>{teamBName}</Text>
-</View>
-
+            {/* Versus banner (perfectly centered) */}
+            <View style={styles.vsCard}>
+              <Text style={styles.teamTitleLeft} numberOfLines={1}>{teamAName}</Text>
+              <View style={styles.vsPill}>
+                <Text style={styles.vsText}>VS</Text>
+              </View>
+              <Text style={styles.teamTitleRight} numberOfLines={1}>{teamBName}</Text>
+            </View>
 
             {/* Squads */}
             <View style={styles.squadsCard}>
@@ -122,7 +123,7 @@ export default function Lineups() {
               Confirm your lineups below, then proceed to the toss.
             </Text>
 
-            {/* ✅ Toss button (styled via styles/lineups.ts) */}
+            {/* ✅ Toss button (now forwarding overs) */}
             <Link
               href={{
                 pathname: "/match/toss",
@@ -133,6 +134,7 @@ export default function Lineups() {
                   captainB: capB >= 0 ? String(capB) : "",
                   teamAName,
                   teamBName,
+                  overs, // ✅ forward overs to toss
                 },
               }}
               asChild

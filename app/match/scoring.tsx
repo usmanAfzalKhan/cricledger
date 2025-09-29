@@ -1,6 +1,6 @@
 // app/match/scoring.tsx
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -22,13 +22,18 @@ import { OverProgress, Pip } from "../../components/scoring/OverProgress";
 import { PadKey, RunPad } from "../../components/scoring/RunPad";
 import { SelectModal } from "../../components/scoring/SelectModal";
 
-/** AsyncStorage shim (safe if the package isn't installed yet) */
+/** AsyncStorage shim (safe if package not installed yet) */
 type StorageLike = { setItem(k: string, v: string): Promise<void>; getItem(k: string): Promise<string | null> };
-const Storage: StorageLike = { async setItem(){}, async getItem(){ return null; } };
+const Storage: StorageLike = { async setItem() {}, async getItem() { return null; } };
 
 type Dismissal = "Bowled" | "Caught" | "Run-out";
 type TeamID = "A" | "B";
-type Batter = { name: string; runs: number; balls: number; out?: { how: Dismissal; by?: string; catcher?: string; runOutBy?: string } };
+type Batter = {
+  name: string;
+  runs: number;
+  balls: number;
+  out?: { how: Dismissal | "Declared"; by?: string; catcher?: string; runOutBy?: string };
+};
 type Bowler = { name: string; conceded: number; legalBalls: number };
 type InningsState = {
   battingTeamName: string; bowlingTeamName: string;
@@ -42,9 +47,12 @@ type InningsState = {
   showSheets: boolean;
 };
 type MatchState = {
+  oversLimit: number;                    // overs per innings
   inningsIndex: 0 | 1;
   innings: [InningsState, InningsState];
-  target?: number;
+  target?: number;                       // target for 2nd innings (runs to win)
+  result?: string;                       // final result text
+  matchOver: boolean;                    // hard stop inputs
   superOvers: { active: boolean; index: 0 | 1; innings: [InningsState, InningsState] } | null;
 };
 
@@ -54,6 +62,7 @@ const econ = (b: Bowler) => (b.legalBalls === 0 ? 0 : b.conceded / (b.legalBalls
 const rr = (runs: number, totalLegalBalls: number) => (totalLegalBalls === 0 ? 0 : runs / (totalLegalBalls / 6));
 const toTwo = (n: number) => n.toFixed(2);
 function safeJSON<T>(raw: unknown, fallback: T): T { if (typeof raw !== "string") return fallback; try { return JSON.parse(raw) as T; } catch { return fallback; } }
+const toInt = (v: any, d = 1) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.floor(n) : d; };
 
 function newInnings(battingTeamName: string, bowlingTeamName: string, battingSquad: string[], bowlingSquad: string[]): InningsState {
   return {
@@ -69,15 +78,18 @@ function newInnings(battingTeamName: string, bowlingTeamName: string, battingSqu
 async function save(state: MatchState) { try { await Storage.setItem(KEY, JSON.stringify(state)); } catch {} }
 async function load(): Promise<MatchState | null> { try { const raw = await Storage.getItem(KEY); return raw ? (JSON.parse(raw) as MatchState) : null; } catch { return null; } }
 
-/* ==============================
-   Themed pill picker modal (close ✕ top-right)
-   ============================== */
+/* ============== Themed pill picker with optional Close ============== */
 type PickerOpt = { label: string; value: string | number; disabled?: boolean };
 function PillPickerModal({
-  open, title, options, onClose, onSelect,
-}: { open: boolean; title: string; options: PickerOpt[]; onClose: () => void; onSelect: (v: string | number) => void }) {
+  open, title, options, onClose, onSelect, requireChoice = false,
+}: { open: boolean; title: string; options: PickerOpt[]; onClose: () => void; onSelect: (v: string | number) => void; requireChoice?: boolean }) {
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={open}
+      transparent
+      animationType="fade"
+      onRequestClose={() => { if (!requireChoice) onClose(); }}
+    >
       <View style={{ flex: 1, backgroundColor: "#000A", padding: 16, justifyContent: "center" }}>
         <View
           style={{
@@ -91,23 +103,25 @@ function PillPickerModal({
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Text style={{ color: "rgba(255,255,255,0.92)", fontSize: 16, fontWeight: "900" }}>{title}</Text>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [{
-                paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-                backgroundColor: pressed ? "rgba(255,95,95,0.18)" : "rgba(255,255,255,0.06)",
-                borderWidth: 1, borderColor: pressed ? THEME.ACCENT : "rgba(255,255,255,0.18)",
-              }]}
-            >
-              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>✕</Text>
-            </Pressable>
+            {!requireChoice && (
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [{
+                  paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+                  backgroundColor: pressed ? "rgba(255,95,95,0.18)" : "rgba(255,255,255,0.06)",
+                  borderWidth: 1, borderColor: pressed ? THEME.ACCENT : "rgba(255,255,255,0.18)",
+                }]}
+              >
+                <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>✕</Text>
+              </Pressable>
+            )}
           </View>
 
           <ScrollView style={{ maxHeight: "70%" }}>
             <View style={{ gap: 10 }}>
-              {options.map((o) => (
+              {options.map((o, idx) => (
                 <Pressable
-                  key={`${o.value}`}
+                  key={`${o.value}-${idx}`}
                   disabled={o.disabled}
                   onPress={() => onSelect(o.value)}
                   style={({ pressed }) => [{
@@ -124,19 +138,21 @@ function PillPickerModal({
             </View>
           </ScrollView>
 
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [{
-              marginTop: 12,
-              paddingVertical: 12,
-              borderRadius: 12,
-              alignItems: "center",
-              backgroundColor: pressed ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.09)",
-              borderWidth: 1, borderColor: "rgba(255,255,255,0.16)",
-            }]}
-          >
-            <Text style={{ color: "#fff", fontWeight: "800" }}>Close</Text>
-          </Pressable>
+          {!requireChoice && (
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [{
+                marginTop: 12,
+                paddingVertical: 12,
+                borderRadius: 12,
+                alignItems: "center",
+                backgroundColor: pressed ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.09)",
+                borderWidth: 1, borderColor: "rgba(255,255,255,0.16)",
+              }]}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800" }}>Close</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Modal>
@@ -144,9 +160,10 @@ function PillPickerModal({
 }
 
 export default function Scoring() {
-  // params from players/toss
+  // params
   const p = useLocalSearchParams<{
-    teamAName?: string; teamBName?: string; teamA?: string; teamB?: string; tossWinner?: "A" | "B"; decision?: "Bat" | "Bowl";
+    teamAName?: string; teamBName?: string; teamA?: string; teamB?: string;
+    tossWinner?: "A" | "B"; decision?: "Bat" | "Bowl"; overs?: string;
   }>();
   const teamAName = (p.teamAName && String(p.teamAName).trim()) || "Team A";
   const teamBName = (p.teamBName && String(p.teamBName).trim()) || "Team B";
@@ -154,7 +171,12 @@ export default function Scoring() {
   const teamB = safeJSON<string[]>(p.teamB, []);
   const tossWinner = p.tossWinner === "A" || p.tossWinner === "B" ? p.tossWinner : "A";
   const decision = p.decision === "Bat" || p.decision === "Bowl" ? p.decision : "Bat";
-  const battingFirst: TeamID = (tossWinner === "A" && decision === "Bat") || (tossWinner === "B" && decision === "Bowl") ? "A" : "B";
+  const oversLimit = toInt(p.overs, 1);
+  const ballsPerOver = 6;
+
+  const battingFirst: TeamID =
+    (tossWinner === "A" && decision === "Bat") ||
+    (tossWinner === "B" && decision === "Bowl") ? "A" : "B";
 
   const firstBatName = battingFirst === "A" ? teamAName : teamBName;
   const firstBowlName = battingFirst === "A" ? teamBName : teamAName;
@@ -167,11 +189,21 @@ export default function Scoring() {
   const secondBowl = battingFirst === "A" ? teamA : teamB;
 
   const [state, setState] = useState<MatchState>(() => ({
+    oversLimit,
     inningsIndex: 0,
-    innings: [newInnings(firstBatName, firstBowlName, firstBat, firstBowl), newInnings(secondBatName, secondBowlName, secondBat, secondBowl)],
-    target: undefined, superOvers: null,
+    innings: [
+      newInnings(firstBatName, firstBowlName, firstBat, firstBowl),
+      newInnings(secondBatName, secondBowlName, secondBat, secondBowl),
+    ],
+    target: undefined,
+    result: undefined,
+    matchOver: false,
+    superOvers: null,
   }));
   const inn = state.innings[state.inningsIndex];
+
+  // side-effect runner used by setInnWithTransitions (avoids TS 'never' callable issue)
+  const afterRef = useRef<null | (() => void)>(null);
 
   // toast + strip pulse
   const [toast, setToast] = useState<string>("");
@@ -194,36 +226,172 @@ export default function Scoring() {
     ]).start();
   };
 
+  // 🔔 FREE HIT pulse
+  const freeHitPulse = useRef(new Animated.Value(0)).current;
+  const freeHitLoop = useRef<Animated.CompositeAnimation | null>(null);
+  useEffect(() => {
+    if (inn.freeHit) {
+      freeHitPulse.setValue(0.2);
+      freeHitLoop.current?.stop();
+      freeHitLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(freeHitPulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(freeHitPulse, { toValue: 0.2, duration: 500, useNativeDriver: true }),
+        ])
+      );
+      freeHitLoop.current.start();
+    } else {
+      freeHitLoop.current?.stop();
+      freeHitLoop.current = null;
+      Animated.timing(freeHitPulse, { toValue: 1, duration: 120, useNativeDriver: true }).start();
+    }
+  }, [inn.freeHit]);
+
   useEffect(() => { (async () => { const restored = await load(); if (restored) setState(restored); })(); }, []);
   useEffect(() => { save(state); }, [state]);
 
   const striker = inn.strikerIdx !== null ? inn.batters[inn.strikerIdx] : null;
   const nonStriker = inn.nonStrikerIdx !== null ? inn.batters[inn.nonStrikerIdx] : null;
   const bowler = inn.bowlerIdx !== null ? inn.bowlers[inn.bowlerIdx] : null;
-  const totalLegal = inn.completedOvers * 6 + inn.legalBalls;
+  const totalLegal = inn.completedOvers * ballsPerOver + inn.legalBalls;
   const currRR = rr(inn.runs, totalLegal);
 
+  // ===== derive current over pips (shows only ongoing over) =====
+  function currentOverPips(all: Pip[], legalBallsInOver: number): Pip[] {
+    if (all.length === 0) return [];
+    const out: Pip[] = [];
+    let legal = 0;
+    for (let i = all.length - 1; i >= 0; i--) {
+      const p = all[i];
+      const isLegal = p.t === "run" || p.t === "wicket" || p.t === "b" || p.t === "lb";
+      out.push(p);
+      if (isLegal) {
+        legal += 1;
+        if (legal === legalBallsInOver) break;
+      }
+    }
+    return out.reverse();
+  }
+  const pipsForThisOver = currentOverPips(inn.pips, inn.legalBalls);
+
   // UI state
-  const [openStriker, setOpenStriker] = useState(false);
-  const [openNon, setOpenNon] = useState(false);
+  const [openStriker, _setOpenStriker] = useState(false);
+  const [openNon, _setOpenNon] = useState(false);
   const [openBowler, setOpenBowler] = useState(false);
 
+  // Gate striker/non openers while bowler modal is open
+  const setOpenStriker = (v: boolean) => {
+    if (openBowler && v) return Alert.alert("Pick bowler first", "Select the bowler for the next over.");
+    _setOpenStriker(v);
+  };
+  const setOpenNon = (v: boolean) => {
+    if (openBowler && v) return Alert.alert("Pick bowler first", "Select the bowler for the next over.");
+    _setOpenNon(v);
+  };
+
   const [openPlusPicker, setOpenPlusPicker] = useState<null | { kind: "NB" | "Wd" | "B" | "LB" }>(null);
+
+  // Wicket flow
   const [openWicket, setOpenWicket] = useState(false);
   const [openWhoOut, setOpenWhoOut] = useState<null | "striker" | "nonStriker">(null);
-
   const [openDismissal, setOpenDismissal] = useState(false);
   const [openCatchFielder, setOpenCatchFielder] = useState(false);
   const [openRunOutFielder, setOpenRunOutFielder] = useState(false);
-  const [incomingBatterOpen, setIncomingBatterOpen] = useState(false);
 
-  function setInn(up: (i: InningsState) => void) {
+  // Incoming batter (mandatory) + remember who left
+  const [incomingBatterOpen, setIncomingBatterOpen] = useState(false);
+  const lastOutRef = useRef<null | "striker" | "nonStriker">(null);
+
+  // Declarations: track which outgoing was declared
+  const declareRef = useRef<null | "striker" | "nonStriker">(null);
+
+  // Undo stack
+  function pushUndo() { undoRef.current.push(JSON.stringify(state)); }
+  const undoRef = useRef<string[]>([]);
+  function onUndo() {
+    const snap = undoRef.current.pop();
+    if (!snap) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setState(JSON.parse(snap) as MatchState);
+  }
+
+  function setInnCore(up: (i: InningsState) => void) {
     setState(prev => {
-      const next = { ...prev, innings: [...prev.innings] as [InningsState, InningsState] };
-      const clone = JSON.parse(JSON.stringify(next.innings[next.inningsIndex])) as InningsState;
-      up(clone); next.innings[next.inningsIndex] = clone; return next;
+      const next: MatchState = { ...prev, innings: [...prev.innings] as [InningsState, InningsState] };
+      const idx = next.inningsIndex;
+      const clone = JSON.parse(JSON.stringify(next.innings[idx])) as InningsState;
+      up(clone);
+      next.innings[idx] = clone;
+      return next;
     });
   }
+
+  // Unified: mutate innings and apply transitions atomically (no stale state)
+  function setInnWithTransitions(up: (i: InningsState) => void) {
+    setState(prev => {
+      const next: MatchState = { ...prev, innings: [...prev.innings] as [InningsState, InningsState] };
+      const idx = next.inningsIndex;
+      const i = JSON.parse(JSON.stringify(next.innings[idx])) as InningsState;
+
+      // Apply the scoring mutation
+      up(i);
+
+      // ---- TRANSITIONS ----
+      const oversDone = i.completedOvers >= next.oversLimit && i.legalBalls === 0;
+
+      if (idx === 0) {
+        if (oversDone || allOut(i)) {
+          next.innings[idx] = i;
+          next.inningsIndex = 1 as 0 | 1;
+          next.target = i.runs + 1;
+          afterRef.current = () => {
+            setOpenBowler(false);
+            flash(`End of ${i.battingTeamName} innings — ${i.runs}/${i.wickets}. Target ${i.runs + 1}`);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setTimeout(() => {
+              _setOpenStriker(true);
+              _setOpenNon(true);
+            }, 200);
+          };
+          return next;
+        }
+      } else {
+        const chased = next.target != null && i.runs >= next.target;
+        if (chased || oversDone || allOut(i)) {
+          const need = next.target == null ? 0 : next.target - i.runs;
+          const result =
+            next.target == null ? "Match over" :
+            need <= 0
+              ? (() => {
+                  const wktsRemaining = i.battingSquad.length - 1 - i.wickets;
+                  return `${i.battingTeamName} won by ${wktsRemaining} wicket${wktsRemaining === 1 ? "" : "s"}`;
+                })()
+              : `${i.bowlingTeamName} won by ${need - 1} run${need - 1 === 1 ? "" : "s"}`;
+
+          next.matchOver = true;
+          next.result = result;
+          next.innings[idx] = i;
+
+          afterRef.current = () => {
+            setOpenBowler(false);
+            flash(chased ? "Target chased!" : "Innings complete");
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          };
+          return next;
+        }
+      }
+
+      // No transition; just commit the innings
+      next.innings[idx] = i;
+      return next;
+    });
+
+    // run side effect (if any) after state update
+    const fn = afterRef.current;
+    afterRef.current = null;
+    if (fn) fn();
+  }
+
   function swapStrike(i: InningsState) { const a = i.strikerIdx; i.strikerIdx = i.nonStrikerIdx; i.nonStrikerIdx = a; }
   function ensureMilestones(i: InningsState, idx: number) {
     const b = i.batters[idx]; const key = b.name; const seen = i.batterMilestonesShown[key] || {};
@@ -238,43 +406,73 @@ export default function Scoring() {
       if (chain === 3) flash("HATTRICK!!!");
     } else { i.hatTrickCandidate = null; }
   }
+
+  /** Count available batters (on-field + any never-out on bench). Declared or dismissed are NOT available. */
+  function availableBattersCount(i: InningsState) {
+    let count = 0;
+    i.batters.forEach((b, idx) => {
+      const onField = idx === i.strikerIdx || idx === i.nonStrikerIdx;
+      if (onField) count++;
+      else if (!b.out) count++; // only never-out bench can still bat
+    });
+    return count;
+  }
+  /** All-out helper: fewer than 2 available (includes declarations). */
+  function lessThanTwoAvailable(i: InningsState) {
+    return availableBattersCount(i) < 2;
+  }
+
   function endOver(i: InningsState, lastBallOdd: boolean) {
-    // Correct logic: at over end, swap strike *only if* last ball was even
     i.completedOvers += 1; i.legalBalls = 0;
     if (!lastBallOdd) { swapStrike(i); }
-    i.prevBowlerIdx = i.bowlerIdx; i.bowlerIdx = null; setOpenBowler(true);
+    i.prevBowlerIdx = i.bowlerIdx; i.bowlerIdx = null;
+    setOpenBowler(true); // bowler for NEXT over (closed if innings ends)
   }
-  function pushUndo() { undoRef.current.push(JSON.stringify(state)); }
-  const undoRef = useRef<string[]>([]);
-  function onUndo() { const snap = undoRef.current.pop(); if (!snap) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setState(JSON.parse(snap) as MatchState); }
+
+  // ===== innings / match transitions =====
+  function allOut(i: InningsState) {
+    const total = i.battingSquad.length;
+    // either classical wickets count OR availability logic
+    return i.wickets >= (total - 1) || lessThanTwoAvailable(i);
+  }
 
   const needSetup = inn.strikerIdx === null || inn.nonStrikerIdx === null || inn.bowlerIdx === null;
 
-  // Actions
+  // ======= Scoring actions (blocked when waiting for incoming or matchOver) =======
+  function guardInputs(): boolean {
+    if (state.matchOver) { Alert.alert("Match finished", "Tap End Match to view summary, or Undo to revise."); return false; }
+    if (incomingBatterOpen) { Alert.alert("Select incoming batter", "Choose the next batter to continue."); return false; }
+    if (needSetup) { Alert.alert("Pick players", "Select striker, non-striker, and bowler first."); return false; }
+    return true;
+  }
+
   function addRun(n: 0 | 1 | 2 | 3 | 4 | 5 | 6) {
+    if (!guardInputs()) return;
     pushUndo();
     Haptics.impactAsync(n === 6 ? Haptics.ImpactFeedbackStyle.Heavy : n === 4 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
     ackStrip();
-    setInn(i => {
+    setInnWithTransitions(i => {
       i.pips.push({ t: "run", v: n });
       if (i.strikerIdx !== null) { i.batters[i.strikerIdx].runs += n; i.batters[i.strikerIdx].balls += 1; ensureMilestones(i, i.strikerIdx); }
       if (i.bowlerIdx !== null) { i.bowlers[i.bowlerIdx].conceded += n; i.bowlers[i.bowlerIdx].legalBalls += 1; }
       i.runs += n; i.legalBalls += 1;
 
-      const isOverEnd = i.legalBalls === 6;
+      const isOverEnd = i.legalBalls === ballsPerOver;
       if (isOverEnd) {
         endOver(i, n % 2 === 1);
-      } else {
-        if (n % 2 === 1) swapStrike(i);
+      } else if (n % 2 === 1) {
+        swapStrike(i);
       }
 
       onLegalBallComplete(i, false);
       i.freeHit = false;
     });
   }
+
   function addExtras(kind: "NB" | "Wd" | "B" | "LB", plus: number) {
+    if (!guardInputs()) return;
     pushUndo(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); ackStrip();
-    setInn(i => {
+    setInnWithTransitions(i => {
       if (kind === "NB") {
         const total = 1 + plus; i.pips.push({ t: "nb", v: total }); i.runs += total;
         if (i.bowlerIdx !== null) i.bowlers[i.bowlerIdx].conceded += total; i.freeHit = true;
@@ -287,11 +485,11 @@ export default function Scoring() {
         i.runs += v; if (i.bowlerIdx !== null) { i.bowlers[i.bowlerIdx].conceded += v; i.bowlers[i.bowlerIdx].legalBalls += 1; }
         i.legalBalls += 1;
 
-        const isOverEnd = i.legalBalls === 6;
+        const isOverEnd = i.legalBalls === ballsPerOver;
         if (isOverEnd) {
           endOver(i, v % 2 === 1);
-        } else {
-          if (v % 2 === 1) swapStrike(i);
+        } else if (v % 2 === 1) {
+          swapStrike(i);
         }
 
         onLegalBallComplete(i, false);
@@ -299,23 +497,61 @@ export default function Scoring() {
       }
     });
   }
+
   function takeWicket(how: Dismissal, who: "striker" | "nonStriker", fielder?: string) {
+    if (!guardInputs()) return;
     pushUndo(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); ackStrip();
-    setInn(i => {
+
+    setInnWithTransitions(i => {
       const outIdx = who === "striker" ? i.strikerIdx : i.nonStrikerIdx; if (outIdx === null) return;
+
+      // Record wicket ball
       i.legalBalls += 1; if (i.bowlerIdx !== null) i.bowlers[i.bowlerIdx].legalBalls += 1;
       i.pips.push({ t: "wicket", how });
+
+      // Update batter out (respect free hit)
       const b = i.batters[outIdx]; b.balls += 1; b.out = { how, by: i.bowlerIdx !== null ? i.bowlers[i.bowlerIdx].name : undefined };
-      if (how === "Caught" && fielder) b.out.catcher = fielder; if (how === "Run-out" && fielder) b.out.runOutBy = fielder;
-      if (i.freeHit && how !== "Run-out") { b.out = undefined; } else { i.wickets += 1; }
-      const bowlerWicket = how === "Bowled" || how === "Caught"; onLegalBallComplete(i, bowlerWicket);
-      setIncomingBatterOpen(true);
-      if (i.legalBalls === 6) endOver(i, false);
+      if (how === "Caught" && fielder) b.out.catcher = fielder;
+      if (how === "Run-out" && fielder) b.out.runOutBy = fielder;
+
+      let wicketCounts = true;
+      if (i.freeHit && how !== "Run-out") { b.out = undefined; wicketCounts = false; }
+
+      if (wicketCounts) i.wickets += 1;
+
+      const bowlerWicket = wicketCounts && (how === "Bowled" || how === "Caught");
+      onLegalBallComplete(i, !!bowlerWicket);
+
+      // Determine over end and all-out NOW
+      const isOverEnd = i.legalBalls === ballsPerOver;
+      const isAllOutNow = allOut(i);
+
+      // Remember who went out (for replacement if needed)
+      lastOutRef.current = wicketCounts ? who : null;
+
+      if (isAllOutNow) {
+        // If over finished on the wicket, quietly roll forward without bowler picker or strike swap
+        if (isOverEnd) {
+          i.completedOvers += 1;
+          i.legalBalls = 0;
+          i.prevBowlerIdx = i.bowlerIdx;
+          i.bowlerIdx = null;
+        }
+        // No incoming batter on all-out
+      } else {
+        // Not all-out — must select incoming batter immediately
+        setIncomingBatterOpen(true);
+        if (isOverEnd) endOver(i, false);
+      }
+
       i.freeHit = false;
     });
   }
 
   function onPad(k: PadKey) {
+    if (state.matchOver || incomingBatterOpen) {
+      return guardInputs();
+    }
     if (needSetup) { Alert.alert("Pick players", "Select striker, non-striker, and bowler first."); return; }
     switch (k) {
       case "0": return addRun(0);
@@ -336,9 +572,21 @@ export default function Scoring() {
         return;
       }
       case "Declare": {
+        // 🔒 Block declare if it would leave < 2 available (last pair) OR there is no replacement to bring in
+        const available = availableBattersCount(inn);
+        const hasReplacement = inn.batters.some((b, idx) =>
+          idx !== inn.strikerIdx && idx !== inn.nonStrikerIdx && !b.out
+        );
+        if (available <= 2 || !hasReplacement) {
+          Alert.alert("Can't declare now", "Only two batters remain (or no replacement available). Declaring is not allowed.");
+          return;
+        }
+
+        declareRef.current = null;
+        const choose = (w: "striker" | "nonStriker") => { declareRef.current = w; setIncomingBatterOpen(true); };
         const options = [
-          { text: `Replace ${striker?.name} (striker)`, onPress: () => declareFlow("striker") },
-          { text: `Replace ${nonStriker?.name} (non-striker)`, onPress: () => declareFlow("nonStriker") },
+          { text: `Replace ${striker?.name} (striker)`, onPress: () => choose("striker") },
+          { text: `Replace ${nonStriker?.name} (non-striker)`, onPress: () => choose("nonStriker") },
           { text: "Cancel", style: "cancel" as const },
         ];
         Alert.alert("Declare (retired not out)", "Choose which batter to replace.", options);
@@ -347,9 +595,17 @@ export default function Scoring() {
       case "Undo": return onUndo();
     }
   }
-  function declareFlow(which: "striker" | "nonStriker") { setIncomingBatterOpen(true); setOpenWhoOut(which); }
 
-  // render
+  // ===== helper text for 2nd innings =====
+  const needText = (() => {
+    if (state.inningsIndex !== 1 || state.target == null) return null;
+    const ballsBowled = inn.completedOvers * ballsPerOver + inn.legalBalls;
+    const ballsLeft = state.oversLimit * ballsPerOver - ballsBowled;
+    const need = Math.max(0, state.target - inn.runs);
+    return `Need ${need} from ${ballsLeft} balls`;
+  })();
+
+  // render strip pulse
   const stripStyle = {
     transform: [{ scale: stripAck.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }],
   };
@@ -365,6 +621,45 @@ export default function Scoring() {
             <Text style={{ color: THEME.TEXT, fontSize: 18, fontWeight: "900", letterSpacing: 0.3 }}>Scoring</Text>
             <Text style={{ color: THEME.TEXT_MUTED, marginTop: 2, fontSize: 12 }}>Select openers & bowler, then score.</Text>
           </View>
+
+          {state.matchOver && (
+            <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
+              <View style={{ padding: 14, backgroundColor: "rgba(30,38,49,0.9)", borderWidth: 1, borderColor: THEME.BORDER, borderRadius: 16 }}>
+                <Text style={{ color: "#FFEB99", fontWeight: "900", fontSize: 16, marginBottom: 8 }}>
+                  {state.result ?? "Match over"}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      router.push({
+                        pathname: "/match/summary",
+                        params: {
+                          teamAName,
+                          teamBName,
+                          overs: String(state.oversLimit),
+                          result: state.result ?? "",
+                          i1runs: String(state.innings[0].runs),
+                          i1wkts: String(state.innings[0].wickets),
+                          i2runs: String(state.innings[1].runs),
+                          i2wkts: String(state.innings[1].wickets),
+                        },
+                      });
+                    }}
+                    style={[s.padBtn, { backgroundColor: THEME.ACCENT, borderColor: THEME.ACCENT, flex: 1 }]}
+                  >
+                    <Text style={[s.padBtnText, { color: "#0B0F14" }]}>End Match → Summary</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={onUndo}
+                    style={[s.padBtn, s.btnDanger, { flex: 1 }]}
+                  >
+                    <Text style={s.padBtnText}>Undo last ball</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          )}
 
           {needSetup ? (
             <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
@@ -399,36 +694,71 @@ export default function Scoring() {
                   <View style={s.stripRow}>
                     <Text style={s.stripLine}>
                       {inn.battingTeamName} {inn.runs}/{inn.wickets} <Text style={s.sep}>|</Text>{" "}
-                      <Text style={[s.name, { color: THEME.ACCENT }]}>🏏 {striker?.name}</Text>{" "}
+                      <Text style={[s.name, { color: THEME.ACCENT }]}>
+                        🏏 {striker?.name} {typeof striker?.runs === "number" ? `${striker?.runs}*` : ""}
+                      </Text>{" "}
                       <Text style={s.sep}>  </Text>
-                      <Text style={s.name}>{nonStriker?.name}</Text>{" "}
+                      <Text style={s.name}>
+                        {nonStriker?.name} {typeof nonStriker?.runs === "number" ? `${nonStriker?.runs}` : ""}
+                      </Text>{" "}
                       <Text style={s.sep}>|</Text>{" "}
-                      <Text style={[s.name, { color: "#ff6666" }]}>🔴 {bowler?.name} {ovText(inn.completedOvers, inn.legalBalls)}</Text>
+                      <Text style={[s.name, { color: "#ff6666" }]}>
+                        🔴 {bowler?.name} {ovText(inn.completedOvers, inn.legalBalls)}
+                      </Text>{" "}
+                      <Text style={s.sep}>|</Text>{" "}
+                      <Text style={[s.name, { color: THEME.TEXT_MUTED }]}>
+                        Inns {ovText(inn.completedOvers, inn.legalBalls)}/{state.oversLimit}
+                      </Text>
                     </Text>
                   </View>
                   <Text style={[s.stripSub, { marginTop: 6 }]}>
                     Run Rate: {toTwo(currRR)}
                   </Text>
+                  {needText ? <Text style={[s.stripSub, { marginTop: 4 }]}>{needText}</Text> : null}
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                    {!!inn.hatTrickCandidate && inn.hatTrickCandidate.chain === 2 && (<View style={s.chip}><Text style={s.chipText}>HATTRICK BALL</Text></View>)}
-                    {inn.freeHit && (<View style={s.chip}><Text style={s.chipText}>FREE HIT</Text></View>)}
+                    {!!inn.hatTrickCandidate && inn.hatTrickCandidate.chain === 2 && (
+                      <View style={s.chip}><Text style={s.chipText}>HATTRICK BALL</Text></View>
+                    )}
+                    {inn.freeHit && (
+                      <Animated.View
+                        style={[
+                          s.chip,
+                          {
+                            backgroundColor: "rgba(0, 230, 118, 0.12)",
+                            borderColor: "#00E676",
+                            opacity: freeHitPulse,
+                          },
+                        ]}
+                      >
+                        <Text style={[s.chipText, { color: "#00E676", fontWeight: "900" }]}>FREE HIT</Text>
+                      </Animated.View>
+                    )}
                   </View>
                 </Animated.View>
               </View>
 
-              <OverProgress pips={inn.pips} />
+              {/* Over progress = this over only */}
+              <OverProgress pips={pipsForThisOver} />
 
-              {/* Red WICKET button */}
-              <View style={{ paddingHorizontal: 16, marginTop: -4 }}>
-                <Pressable onPress={() => onPad("W")} style={[s.padBtn, s.btnDanger, { alignSelf: "stretch", marginBottom: 10 }]}>
-                  <Text style={s.padBtnText}>WICKET</Text>
+              {/* Big WICKET button + RunPad */}
+              <View style={{ paddingHorizontal: 16 }}>
+                <Pressable
+                  disabled={state.matchOver || incomingBatterOpen || needSetup}
+                  onPress={() => onPad("W")}
+                  style={[
+                    s.padBtn,
+                    s.btnDanger,
+                    { marginBottom: 6, paddingVertical: 18, opacity: state.matchOver || incomingBatterOpen || needSetup ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={[s.padBtnText, { fontWeight: "900" }]}>WICKET</Text>
                 </Pressable>
               </View>
 
-              <RunPad onPress={onPad} />
+              <RunPad onPress={onPad} disabled={state.matchOver || incomingBatterOpen || needSetup} />
 
               <View style={{ paddingHorizontal: 16 }}>
-                <Pressable style={[s.padBtn, s.btnGhost]} onPress={() => setInn(i => { i.showSheets = true; })}>
+                <Pressable style={[s.padBtn, s.btnGhost]} onPress={() => setInnCore(i => { i.showSheets = true; })}>
                   <Text style={s.padBtnText}>Team Sheets</Text>
                 </Pressable>
               </View>
@@ -437,24 +767,33 @@ export default function Scoring() {
         </ScrollView>
 
         {/* Toast */}
-        <Animated.View pointerEvents="none" style={[s.toast, { opacity: toastAnim, transform: [{ scale: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            s.toast,
+            {
+              opacity: toastAnim,
+              transform: [{ scale: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }],
+            },
+          ]}
+        >
           <Text style={s.toastText}>{toast}</Text>
         </Animated.View>
 
-        {/* Pickers */}
+        {/* Pickers (Striker/Non/Bowler) */}
         <PillPickerModal
           open={openStriker}
           title="Select Striker"
-          options={inn.batters.map((b, idx) => ({ label: b.name, value: idx, disabled: inn.nonStrikerIdx === idx }))}
-          onClose={() => setOpenStriker(false)}
-          onSelect={(v) => { setOpenStriker(false); setInn(i => { i.strikerIdx = Number(v); }); }}
+          options={inn.batters.map((b, idx) => ({ label: b.name, value: idx, disabled: inn.nonStrikerIdx === idx || !!b.out }))}
+          onClose={() => _setOpenStriker(false)}
+          onSelect={(v) => { _setOpenStriker(false); setInnCore(i => { i.strikerIdx = Number(v); }); }}
         />
         <PillPickerModal
           open={openNon}
           title="Select Non-striker"
-          options={inn.batters.map((b, idx) => ({ label: b.name, value: idx, disabled: inn.strikerIdx === idx }))}
-          onClose={() => setOpenNon(false)}
-          onSelect={(v) => { setOpenNon(false); setInn(i => { i.nonStrikerIdx = Number(v); }); }}
+          options={inn.batters.map((b, idx) => ({ label: b.name, value: idx, disabled: inn.strikerIdx === idx || !!b.out }))}
+          onClose={() => _setOpenNon(false)}
+          onSelect={(v) => { _setOpenNon(false); setInnCore(i => { i.nonStrikerIdx = Number(v); }); }}
         />
         <PillPickerModal
           open={openBowler}
@@ -463,22 +802,33 @@ export default function Scoring() {
             label: b.name + (inn.prevBowlerIdx === idx ? " (bowled last over)" : ""), value: idx, disabled: inn.prevBowlerIdx === idx,
           }))}
           onClose={() => setOpenBowler(false)}
-          onSelect={(v) => { setOpenBowler(false); setInn(i => { i.bowlerIdx = Number(v); }); }}
+          onSelect={(v) => { setOpenBowler(false); setInnCore(i => { i.bowlerIdx = Number(v); }); }}
         />
 
-        {/* Extras (uses SelectModal) */}
-        <SelectModal
+        {/* Extras */}
+        <PillPickerModal
           open={!!openPlusPicker}
-          title={openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd" ? `${openPlusPicker?.kind} + (overthrows)` : `${openPlusPicker?.kind} (1–6)`}
-          options={Array.from({ length: openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd" ? 7 : 6 }).map((_, idx) => {
-            const n = openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd" ? idx : (idx + 1);
-            return { label: `+${n}`, value: n };
-          })}
+          title={
+            openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd"
+              ? `${openPlusPicker?.kind} + (overthrows)`
+              : `${openPlusPicker?.kind} (1–6)`
+          }
+          options={
+            (openPlusPicker?.kind === "NB" || openPlusPicker?.kind === "Wd")
+              ? Array.from({ length: 7 }).map((_, n) => ({ label: `+${n}`, value: n }))
+              : Array.from({ length: 6 }).map((_, i) => ({ label: `+${i + 1}`, value: i + 1 }))
+          }
           onClose={() => setOpenPlusPicker(null)}
-          onSelect={(v: string | number) => { const plus = Number(v); if (!openPlusPicker) return; const k = openPlusPicker.kind; setOpenPlusPicker(null); addExtras(k, plus); }}
+          onSelect={(v) => {
+            if (!openPlusPicker) return;
+            const plus = Number(v);
+            const k = openPlusPicker.kind;
+            setOpenPlusPicker(null);
+            addExtras(k, plus);
+          }}
         />
 
-        {/* Who is out? */}
+        {/* Who is out? — mandatory */}
         <SelectModal
           open={openWicket}
           title="Who is out?"
@@ -486,16 +836,17 @@ export default function Scoring() {
             { label: `Striker (${striker?.name ?? "-"})`, value: "striker" },
             { label: `Non-striker (${nonStriker?.name ?? "-"})`, value: "nonStriker" },
           ]}
-          onClose={() => setOpenWicket(false)}
+          onClose={() => {}}
           onSelect={(v: string | number) => {
             setOpenWicket(false);
             setOpenWhoOut(v as "striker" | "nonStriker");
             setOpenDismissal(true);
           }}
+          requireChoice
         />
 
-        {/* Dismissal type (themed) */}
-        <PillPickerModal
+        {/* Dismissal type — mandatory */}
+        <SelectModal
           open={openDismissal}
           title="Dismissal type"
           options={[
@@ -503,7 +854,7 @@ export default function Scoring() {
             { label: "Caught", value: "Caught" },
             { label: "Run-out", value: "Run-out" },
           ]}
-          onClose={() => setOpenDismissal(false)}
+          onClose={() => {}}
           onSelect={(v) => {
             const how = String(v) as Dismissal;
             setOpenDismissal(false);
@@ -511,54 +862,80 @@ export default function Scoring() {
             else if (how === "Run-out") { setOpenRunOutFielder(true); }
             else { confirmDismissal("Bowled"); }
           }}
+          requireChoice
         />
 
-        {/* Fielders */}
+        {/* Fielders — mandatory */}
         <SelectModal
           open={openCatchFielder}
           title="Who took the catch?"
-          options={inn.bowlingSquad.map((n) => ({ label: n, value: n }))}
-          onClose={() => setOpenCatchFielder(false)}
-          onSelect={(v: string | number) => { setOpenCatchFielder(false); confirmDismissal("Caught", String(v)); }}
+          options={inn.bowlingSquad.map((n, idx) => ({ label: n, value: `${n}-${idx}` }))}
+          onClose={() => {}}
+          onSelect={(v: string | number) => { setOpenCatchFielder(false); confirmDismissal("Caught", String(v).split("-")[0]); }}
+          requireChoice
         />
         <SelectModal
           open={openRunOutFielder}
           title="Who effected the run-out?"
-          options={inn.bowlingSquad.map((n) => ({ label: n, value: n }))}
-          onClose={() => setOpenRunOutFielder(false)}
+          options={inn.bowlingSquad.map((n, idx) => ({ label: n, value: `${n}-${idx}` }))}
+          onClose={() => {}}
           onSelect={(v: string | number) => {
+            const name = String(v).split("-")[0];
             setOpenRunOutFielder(false);
             Alert.alert("Which batter was run out?", "", [
-              { text: `Striker (${striker?.name})`, onPress: () => { setOpenWhoOut("striker"); confirmDismissal("Run-out", String(v)); } },
-              { text: `Non-striker (${nonStriker?.name})`, onPress: () => { setOpenWhoOut("nonStriker"); confirmDismissal("Run-out", String(v)); } },
+              { text: `Striker (${striker?.name})`, onPress: () => { setOpenWhoOut("striker"); confirmDismissal("Run-out", name); } },
+              { text: `Non-striker (${nonStriker?.name})`, onPress: () => { setOpenWhoOut("nonStriker"); confirmDismissal("Run-out", name); } },
               { text: "Cancel", style: "cancel" },
             ]);
           }}
+          requireChoice
         />
 
-        {/* Incoming batter */}
+        {/* Incoming batter — mandatory; blocks inputs until chosen */}
         <SelectModal
           open={incomingBatterOpen}
           title="Select incoming batter"
           options={inn.batters
             .map((b, idx) => ({ b, idx }))
             .filter(x => x.idx !== inn.strikerIdx && x.idx !== inn.nonStrikerIdx && !x.b.out)
-            .map(x => ({ label: x.b.name, value: x.idx }))}
-          onClose={() => setIncomingBatterOpen(false)}
+            .map((x, i) => ({ label: x.b.name, value: `${x.idx}-${i}` }))}
+          onClose={() => {}}
           onSelect={(v: string | number) => {
-            const idx = Number(v); setIncomingBatterOpen(false);
-            if (openWhoOut) setInn(i => { if (openWhoOut === "striker") i.strikerIdx = idx; else i.nonStrikerIdx = idx; });
+            const val = String(v);
+            const idx = Number(val.split("-")[0]);
+            setIncomingBatterOpen(false);
+
+            // Declare flow
+            if (declareRef.current) {
+              setInnCore(i => {
+                const outIdx = declareRef.current === "striker" ? i.strikerIdx : i.nonStrikerIdx;
+                if (outIdx != null) i.batters[outIdx].out = { how: "Declared" };
+                if (declareRef.current === "striker") i.strikerIdx = idx; else i.nonStrikerIdx = idx;
+              });
+              declareRef.current = null;
+              lastOutRef.current = null;
+            } else {
+              // Wicket flow — replace the correct slot based on remembered out batter
+              const who = lastOutRef.current ?? openWhoOut ?? "striker";
+              setInnCore(i => {
+                if (who === "striker") i.strikerIdx = idx;
+                else i.nonStrikerIdx = idx;
+              });
+              lastOutRef.current = null;
+            }
+            setOpenWhoOut(null);
           }}
+          requireChoice
         />
 
         {/* Team sheets overlay */}
         {inn.showSheets && (
           <>
-            <Pressable style={s.sheetBackdrop} onPress={() => setInn(i => { i.showSheets = false; })} />
+            <Pressable style={s.sheetBackdrop} onPress={() => setInnCore(i => { i.showSheets = false; })} />
             <View style={s.sheetCard}>
               <View style={s.sheetHeader}>
                 <Text style={s.sheetTitle}>Team Sheets</Text>
-                <Pressable onPress={() => setInn(i => { i.showSheets = false; })}><Text style={{ color: "#EAF2F8", fontWeight: "800" }}>Back</Text></Pressable>
+                <View />
               </View>
               <ScrollView style={s.sheetBody}>
                 <Text style={[s.colH, { marginBottom: 6 }]}>Batting — {inn.battingTeamName}</Text>
@@ -568,22 +945,28 @@ export default function Scoring() {
                   <Text style={[s.colH, { width: 50, textAlign: "right" }]}>Runs</Text>
                 </View>
                 {inn.batters.map((b, iIdx) => {
-                  const notOut = (!b.out && (iIdx === inn.strikerIdx || iIdx === inn.nonStrikerIdx));
+                  const isStriker = iIdx === inn.strikerIdx;
+                  const isNon = iIdx === inn.nonStrikerIdx;
+                  const notOut = (!b.out && (isStriker || isNon));
                   let dism = "";
                   if (b.out) {
-                    if (b.out.how === "Bowled") dism = `b ${b.out.by ?? ""}`.trim();
-                    if (b.out.how === "Caught") dism = `b ${b.out.by ?? ""}   c ${b.out.catcher ?? ""}`.trim();
-                    if (b.out.how === "Run-out") dism = `r ${b.out.runOutBy ?? ""}`.trim();
+                    if (b.out.how === "Declared") dism = "declared";
+                    else if (b.out.how === "Bowled") dism = `b ${b.out.by ?? ""}`.trim();
+                    else if (b.out.how === "Caught") dism = `b ${b.out.by ?? ""}   c ${b.out.catcher ?? ""}`.trim();
+                    else if (b.out.how === "Run-out") dism = `r ${b.out.runOutBy ?? ""}`.trim();
                   } else if (!b.out && !notOut && (b.balls === 0 && b.runs === 0)) dism = "";
                   else if (!b.out && !notOut) dism = "retired not out";
                   return (
                     <View key={iIdx} style={s.row}>
-                      <Text style={[s.col, { flex: 2 }]}>{b.name}{notOut ? "*" : ""}</Text>
+                      <Text style={[s.col, { flex: 2 }]}>
+                        {(isStriker ? "🏏 " : "")}{b.name}{notOut ? "*" : ""}
+                      </Text>
                       <Text style={[s.col, { flex: 2 }]} numberOfLines={1} ellipsizeMode="tail">{dism}</Text>
                       <Text style={[s.col, { width: 50, textAlign: "right" }]}>{b.runs}</Text>
                     </View>
                   );
                 })}
+
                 <Text style={[s.colH, { marginTop: 16, marginBottom: 6 }]}>Bowling — {inn.bowlingTeamName}</Text>
                 <View style={[s.row]}>
                   <Text style={[s.colH, { flex: 2 }]}>Bowler</Text>
@@ -599,6 +982,13 @@ export default function Scoring() {
                     <Text style={[s.col, { width: 70, textAlign: "right" }]}>{b.conceded}</Text>
                   </View>
                 ))}
+
+                <Pressable
+                  onPress={() => setInnCore(i => { i.showSheets = false; })}
+                  style={[s.padBtn, { marginTop: 16, backgroundColor: THEME.ACCENT, borderColor: THEME.ACCENT }]}
+                >
+                  <Text style={[s.padBtnText, { color: "#0b0f14" }]}>Back</Text>
+                </Pressable>
               </ScrollView>
             </View>
           </>
@@ -610,6 +1000,7 @@ export default function Scoring() {
   function confirmDismissal(how: Dismissal, fielder?: string) {
     const who = openWhoOut ?? "striker";
     setOpenWhoOut(null);
+    lastOutRef.current = who; // remember who to replace
     takeWicket(how, who, fielder);
   }
 }

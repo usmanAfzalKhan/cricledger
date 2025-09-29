@@ -39,6 +39,7 @@ type Params = {
   teamB?: string;
   captainA?: string;
   captainB?: string;
+  overs?: string; // ✅ carry overs
 };
 
 function safeJSON<T>(raw: unknown, fallback: T): T {
@@ -59,6 +60,7 @@ export default function TossScreen() {
   const teamB = safeJSON<string[]>(p.teamB, []);
   const captainA = (p.captainA && String(p.captainA)) || "";
   const captainB = (p.captainB && String(p.captainB)) || "";
+  const overs = (p.overs && String(p.overs)) || ""; // ✅
 
   const preservedParams = useMemo(
     () => ({
@@ -68,8 +70,9 @@ export default function TossScreen() {
       teamB: JSON.stringify(teamB),
       captainA,
       captainB,
+      overs, // ✅ pass to scoring
     }),
-    [teamAName, teamBName, teamA, teamB, captainA, captainB]
+    [teamAName, teamBName, teamA, teamB, captainA, captainB, overs]
   );
 
   const [caller, setCaller] = useState<"A" | "B">("A");
@@ -228,7 +231,7 @@ export default function TossScreen() {
                   ‹ Back
                 </Link>
                 <Text style={s.title}>Toss</Text>
-                <View style={s.headerSpacer} />
+                <View className="headerSpacer" style={s.headerSpacer} />
               </View>
 
               {/* Caller + Call */}
