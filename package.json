@@ -41,6 +41,8 @@
     "@types/react": "~19.1.0",
     "@types/react-native": "^0.72.8",
     "expo-module-scripts": "^5.0.7",
+    "imagemin-cli": "^8.0.0",
+    "imagemin-pngquant": "^10.0.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },

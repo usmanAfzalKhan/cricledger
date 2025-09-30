@@ -7,12 +7,14 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   ImageBackground,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -255,6 +257,17 @@ export default function MatchSummary() {
   const [tab, setTab] = useState<"scorecard" | "graphs">("scorecard");
   const [showEco, setShowEco] = useState(false);
 
+  // Title prompt modal
+  const defaultTitle = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${teamAName} vs ${teamBName} — ${y}-${m}-${day}`;
+    };
+  const [showTitleModal, setShowTitleModal] = useState(false);
+  const [shareTitle, setShareTitle] = useState(defaultTitle());
+
   // Series for charts (typed as ChartPack | null)
   const rrSeries = useMemo<ChartPack | null>(() => {
     if (!showDetail || !i1 || !i2) return null;
@@ -303,9 +316,13 @@ export default function MatchSummary() {
     return { xMax, s1, s2, yTicks: niceTicks(maxY, 5) };
   }, [showDetail, i1, i2]);
 
-  // Share: try PDF first (via expo-print), then TXT file, then plain text
-  async function onShare() {
-    const title = "MATCH SUMMARY";
+  // === Share flow ===
+  function onShare() {
+    setShareTitle(defaultTitle());
+    setShowTitleModal(true);
+  }
+
+  async function doShare(finalTitle: string) {
     const subtitleLines = [
       result ? result : "",
       `${teamAName} vs ${teamBName}`,
@@ -316,7 +333,7 @@ export default function MatchSummary() {
     // 1) PDF
     try {
       const html = buildPdfHtml({
-        title,
+        title: finalTitle,
         subtitleLines,
         i1: i1,
         i2: i2,
@@ -342,7 +359,7 @@ export default function MatchSummary() {
 
     // 2) TXT file (aligned columns)
     const parts: string[] = [];
-    parts.push(title);
+    parts.push(finalTitle);
     subtitleLines.forEach(l => parts.push(l));
 
     if (i1 && i2) {
@@ -408,9 +425,8 @@ export default function MatchSummary() {
       const baseDir: string | null = FS.cacheDirectory || FS.documentDirectory || null;
 
       if (canShareFile && baseDir) {
-        const fileName = `${fileSafe(teamAName)}-vs-${fileSafe(teamBName)}-summary.txt`;
+        const fileName = `${fileSafe(finalTitle)}.txt`;
         const uri = `${baseDir}${fileName}`;
-        // default encoding is UTF-8; no need to pass options (avoids TS type noise)
         await FileSystem.writeAsStringAsync(uri, msg);
         await Sharing.shareAsync(uri, {
           mimeType: "text/plain",
@@ -602,6 +618,45 @@ export default function MatchSummary() {
           </ScrollView>
         </SafeAreaView>
       </ImageBackground>
+
+      {/* Title prompt modal */}
+      <Modal
+        visible={showTitleModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTitleModal(false)}
+      >
+        <View style={st.modalOverlay}>
+          <View style={st.modalCard}>
+            <Text style={st.modalTitle}>Title this match</Text>
+            <TextInput
+              value={shareTitle}
+              onChangeText={setShareTitle}
+              placeholder="Match title"
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              style={st.modalInput}
+            />
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+              <Pressable
+                onPress={() => setShowTitleModal(false)}
+                style={[st.modalBtn, { backgroundColor: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.16)" }]}
+              >
+                <Text style={st.modalBtnTxt}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  const t = shareTitle.trim() || defaultTitle();
+                  setShowTitleModal(false);
+                  await doShare(t);
+                }}
+                style={[st.modalBtn, { backgroundColor: "#68B984", borderColor: "#68B984" }]}
+              >
+                <Text style={[st.modalBtnTxt, { color: "#0B1220" }]}>Share</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -737,5 +792,45 @@ const st = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
     fontSize: 12,
+  },
+
+  // modal bits
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: "rgba(12,18,24,0.95)",
+    borderWidth: 1,
+    borderColor: THEME.BORDER,
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    color: "#EDEFE6",
+    fontWeight: "900",
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: "#EDEFE6",
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  modalBtnTxt: {
+    color: "#EDEFE6",
+    fontWeight: "800",
   },
 });
