@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   ImageBackground,
   Modal,
   Pressable,
@@ -14,13 +15,35 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// 🔽 static imports fix Metro asset resolution
 import bg from "../../assets/bg/stadium.png";
+import fourImg from "../../assets/signals/optimized/boundary_four.png";
+import byeImg from "../../assets/signals/optimized/bye.png";
+import deadBallImg from "../../assets/signals/optimized/dead_ball.png";
+import legByeImg from "../../assets/signals/optimized/leg_bye.png";
+import noBallImg from "../../assets/signals/optimized/no_ball.png";
+import outImg from "../../assets/signals/optimized/out.png";
+import sixImg from "../../assets/signals/optimized/six.png";
+import wideImg from "../../assets/signals/optimized/wide.png";
+
 import { styles as home, THEME } from "../styles/home";
 import { styles as s } from "../styles/scoring";
 
 import { OverProgress, Pip } from "../../components/scoring/OverProgress";
 import { PadKey, RunPad } from "../../components/scoring/RunPad";
 import { SelectModal } from "../../components/scoring/SelectModal";
+
+/** Static images for guide */
+const IMG = {
+  noBall: noBallImg,
+  wide: wideImg,
+  bye: byeImg,
+  legBye: legByeImg,
+  four: fourImg,
+  six: sixImg,
+  out: outImg,
+  deadBall: deadBallImg,
+};
 
 /** AsyncStorage shim (safe if package not installed yet) */
 type StorageLike = {
@@ -422,6 +445,8 @@ export default function Scoring() {
   const [openStriker, _setOpenStriker] = useState(false);
   const [openNon, _setOpenNon] = useState(false);
   const [openBowler, setOpenBowler] = useState(false);
+  // Guide modal toggle
+  const [showGuide, setShowGuide] = useState(false);
 
   // Gate striker/non openers while bowler modal is open
   const setOpenStriker = (v: boolean) => {
@@ -824,25 +849,24 @@ export default function Scoring() {
   };
 
   // --- build summary payload for summary screen
-function buildSummaryPayload(state: MatchState) {
-  const snap = (i: InningsState) => ({
-    battingTeamName: i.battingTeamName,
-    bowlingTeamName: i.bowlingTeamName,
-    runs: i.runs,
-    wickets: i.wickets,
-    completedOvers: i.completedOvers,
-    legalBalls: i.legalBalls,
-    pips: i.pips,
-    batters: i.batters.map(b => ({ name: b.name, runs: b.runs, balls: b.balls, out: b.out })),
-    bowlers: i.bowlers.map(b => ({ name: b.name, conceded: b.conceded, legalBalls: b.legalBalls })),
-  });
-  return {
-    oversLimit: state.oversLimit,
-    result: state.result ?? "",
-    innings: [snap(state.innings[0]), snap(state.innings[1])],
-  };
-}
-
+  function buildSummaryPayload(state: MatchState) {
+    const snap = (i: InningsState) => ({
+      battingTeamName: i.battingTeamName,
+      bowlingTeamName: i.bowlingTeamName,
+      runs: i.runs,
+      wickets: i.wickets,
+      completedOvers: i.completedOvers,
+      legalBalls: i.legalBalls,
+      pips: i.pips,
+      batters: i.batters.map(b => ({ name: b.name, runs: b.runs, balls: b.balls, out: b.out })),
+      bowlers: i.bowlers.map(b => ({ name: b.name, conceded: b.conceded, legalBalls: b.legalBalls })),
+    });
+    return {
+      oversLimit: state.oversLimit,
+      result: state.result ?? "",
+      innings: [snap(state.innings[0]), snap(state.innings[1])],
+    };
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0E11" }}>
@@ -1037,6 +1061,14 @@ function buildSummaryPayload(state: MatchState) {
               <View style={{ paddingHorizontal: 16 }}>
                 <Pressable style={[s.padBtn, s.btnGhost]} onPress={() => setInnCore((i) => { i.showSheets = true; })}>
                   <Text style={s.padBtnText}>Team Sheets</Text>
+                </Pressable>
+
+                {/* Guide button */}
+                <Pressable
+                  style={[s.padBtn, s.btnGhost, { marginTop: 8 }]}
+                  onPress={() => setShowGuide(true)}
+                >
+                  <Text style={s.padBtnText}>Guide</Text>
                 </Pressable>
               </View>
             </>
@@ -1333,6 +1365,83 @@ function buildSummaryPayload(state: MatchState) {
             </View>
           </>
         )}
+
+        {/* Guide overlay with images */}
+        {showGuide && (
+          <>
+            <Pressable
+              style={s.sheetBackdrop}
+              onPress={() => setShowGuide(false)}
+            />
+            <View style={s.sheetCard}>
+              <View style={s.sheetHeader}>
+                <Text style={s.sheetTitle}>Guide — Signals & Scoring</Text>
+                <View />
+              </View>
+              <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 10 }}>
+                <GuideCard
+                  title="No Ball (NB)"
+                  desc={`Illegal delivery (front foot over, high full toss, dangerous bowling, incorrect fielding positions, etc.).
+Award: +1 no-ball to batting side, plus any runs scored off the ball. Ball does not count in the over.
+Next ball is a FREE HIT (only RUN-OUT can dismiss the striker; bowled/caught/LBW don't apply).`}
+                  img={IMG.noBall}
+                />
+                <GuideCard
+                  title="Wide (Wd)"
+                  desc={`Ball is out of the batter’s reach in a normal stance/shot.
+Award: +1 wide to batting side, plus any completed runs. Ball does not count in the over.`}
+                  img={IMG.wide}
+                />
+                <GuideCard
+                  title="Bye (B)"
+                  desc={`Ball passes the batter without bat contact, keeper misses, and batters run.
+Award: Runs as Byes (extras). Counts as a legal ball (adds to the over).`}
+                  img={IMG.bye}
+                />
+                <GuideCard
+                  title="Leg Bye (LB)"
+                  desc={`Ball hits the batter’s body (and batter attempted a shot) and they run.
+Award: Runs as Leg Byes (extras). Counts as a legal ball.`}
+                  img={IMG.legBye}
+                />
+                <GuideCard
+                  title="Boundary Four"
+                  desc={`Ball reaches boundary after touching the ground.
+Award: 4 runs to batting side (ball is dead).`}
+                  img={IMG.four}
+                />
+                <GuideCard
+                  title="Six"
+                  desc={`Ball clears boundary on the full (no ground contact).
+Award: 6 runs to batting side (ball is dead).`}
+                  img={IMG.six}
+                />
+                <GuideCard
+                  title="Out (Example: LBW / General)"
+                  desc={`General signal for OUT is the raised index finger.
+Dismissal types include Bowled, Caught, LBW, Run-out, etc. Scoring follows laws for the specific dismissal.`}
+                  img={IMG.out}
+                />
+                <GuideCard
+                  title="Dead Ball"
+                  desc={`Ball is out of play due to interference or special conditions (e.g., ball hits helmet on ground, serious distraction).
+Award: No runs; delivery does not count if declared dead immediately.`}
+                  img={IMG.deadBall}
+                />
+
+                <Pressable
+                  onPress={() => setShowGuide(false)}
+                  style={[
+                    s.padBtn,
+                    { marginTop: 8, backgroundColor: THEME.ACCENT, borderColor: THEME.ACCENT },
+                  ]}
+                >
+                  <Text style={[s.padBtnText, { color: "#0b0f14" }]}>Back</Text>
+                </Pressable>
+              </ScrollView>
+            </View>
+          </>
+        )}
       </ImageBackground>
     </SafeAreaView>
   );
@@ -1343,6 +1452,33 @@ function buildSummaryPayload(state: MatchState) {
     lastOutRef.current = who; // remember who to replace
     takeWicket(how, who, fielder);
   }
+}
+
+/* Reusable card with title, description, and an image */
+function GuideCard({ title, desc, img }: { title: string; desc: string; img: any }) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={[s.colH, { marginBottom: 6 }]}>{title}</Text>
+      <Text style={[s.col, { marginBottom: 8, lineHeight: 18 }]}>{desc}</Text>
+      <View
+        style={{
+          width: "100%",
+          height: 200,
+          borderRadius: 12,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: THEME.BORDER,
+          backgroundColor: "rgba(255,255,255,0.02)",
+        }}
+      >
+        <Image
+          source={img}
+          style={{ width: "100%", height: "100%" }}
+          resizeMode="contain"
+        />
+      </View>
+    </View>
+  );
 }
 
 /* small pill field styles */
