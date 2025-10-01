@@ -1,6 +1,5 @@
 // app/index.tsx
 import { Link } from "expo-router";
-import React from "react";
 import { ImageBackground, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -30,10 +29,11 @@ export default function Home() {
               </Pressable>
             </Link>
 
-            <Link href="/settings" asChild>
+            {/* Replaces Settings → Cricket Etiquette */}
+            <Link href="/ethics" asChild>
               <Pressable style={styles.settingsBtn}>
-                <Text style={styles.settingsIcon}>⚙️</Text>
-                <Text style={styles.settingsText}>Settings</Text>
+                <Text style={styles.settingsIcon}>🤝</Text>
+                <Text style={styles.settingsText}>Cricket Etiquette</Text>
               </Pressable>
             </Link>
           </View>
