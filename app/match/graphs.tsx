@@ -1,3 +1,4 @@
+// app/match/graphs.tsx
 import { Dimensions, Text, View } from "react-native";
 import Svg, {
   Circle,
@@ -272,3 +273,6 @@ export function LineChartCard({
     </View>
   );
 }
+
+/* Router-ignore stub so Expo Router doesn't treat this helper as a screen */
+export default function _GraphsRouteStub() { return null as any; }

@@ -299,6 +299,12 @@ export default function Scoring() {
     teamBName?: string;
     teamA?: string;
     teamB?: string;
+    /** 🔹 carry captains & logos through so Summary can restart with same squads */
+    captainA?: string;
+    captainB?: string;
+    teamALogoUri?: string;
+    teamBLogoUri?: string;
+
     tossWinner?: "A" | "B";
     decision?: "Bat" | "Bowl";
     overs?: string;
@@ -311,6 +317,11 @@ export default function Scoring() {
   const decision = p.decision === "Bat" || p.decision === "Bowl" ? p.decision : "Bat";
   const oversLimit = toInt(p.overs, 1);
   const ballsPerOver = 6;
+
+  const captainA = typeof p.captainA === "string" ? p.captainA : "";
+  const captainB = typeof p.captainB === "string" ? p.captainB : "";
+  const teamALogoUri = typeof p.teamALogoUri === "string" ? p.teamALogoUri : "";
+  const teamBLogoUri = typeof p.teamBLogoUri === "string" ? p.teamBLogoUri : "";
 
   const battingFirst: TeamID =
     (tossWinner === "A" && decision === "Bat") ||
@@ -534,19 +545,23 @@ export default function Scoring() {
         }
       } else {
         const chased = next.target != null && i.runs >= next.target;
-        if (chased || oversDone || i.wickets >= i.battingSquad.length - 1 || lessThanTwoAvailable(i)) {
-          const need = next.target == null ? 0 : next.target - i.runs;
-          const result =
-            next.target == null
-              ? "Match over"
-              : need <= 0
-              ? (() => {
-                  const wktsRemaining = i.battingSquad.length - 1 - i.wickets;
-                  return `${i.battingTeamName} won by ${wktsRemaining} wicket${
-                    wktsRemaining === 1 ? "" : "s"
-                  }`;
-                })()
-              : `${i.bowlingTeamName} won by ${need - 1} run${need - 1 === 1 ? "" : "s"}`;
+        const inningsEnded =
+          oversDone || i.wickets >= i.battingSquad.length - 1 || lessThanTwoAvailable(i);
+
+        if (chased || inningsEnded) {
+          // 🔹 TIE FIX: if innings ended without chase and the chasing team finished exactly on target-1 -> tie
+          let result: string;
+          if (!chased && next.target != null && next.target - i.runs === 1) {
+            result = "Match tied";
+          } else if (chased) {
+            const wktsRemaining = i.battingSquad.length - 1 - i.wickets;
+            result = `${i.battingTeamName} won by ${wktsRemaining} wicket${wktsRemaining === 1 ? "" : "s"}`;
+          } else {
+            // defending side win
+            const need = next.target == null ? 0 : next.target - i.runs;
+            const margin = Math.max(1, need - 1); // safety guard (non-zero)
+            result = `${i.bowlingTeamName} won by ${margin} run${margin === 1 ? "" : "s"}`;
+          }
 
           next.matchOver = true;
           next.result = result;
@@ -657,7 +672,7 @@ export default function Scoring() {
       i.runs += n;
       i.legalBalls += 1;
 
-      const isOverEnd = i.legalBalls === ballsPerOver;
+      const isOverEnd = i.legalBalls === 6;
       if (isOverEnd) {
         endOver(i, n % 2 === 1);
       } else if (n % 2 === 1) {
@@ -697,7 +712,7 @@ export default function Scoring() {
         }
         i.legalBalls += 1;
 
-        const isOverEnd = i.legalBalls === ballsPerOver;
+        const isOverEnd = i.legalBalls === 6;
         if (isOverEnd) {
           endOver(i, v % 2 === 1);
         } else if (v % 2 === 1) {
@@ -747,7 +762,7 @@ export default function Scoring() {
       onLegalBallComplete(i, !!bowlerWicket);
 
       // Determine over end and all-out NOW
-      const isOverEnd = i.legalBalls === ballsPerOver;
+      const isOverEnd = i.legalBalls === 6;
       const isAllOutNow =
         availableCount(i) < 2 || i.wickets >= i.battingSquad.length - 1;
 
@@ -861,10 +876,26 @@ export default function Scoring() {
       batters: i.batters.map(b => ({ name: b.name, runs: b.runs, balls: b.balls, out: b.out })),
       bowlers: i.bowlers.map(b => ({ name: b.name, conceded: b.conceded, legalBalls: b.legalBalls })),
     });
+
+    // 🔹 Add meta so Summary can restart with identical squads/logos without asking again
+    const meta = {
+      teamAName,
+      teamBName,
+      teamA,
+      teamB,
+      captainA,
+      captainB,
+      oversLimit: state.oversLimit,
+      teamALogoUri,
+      teamBLogoUri,
+    };
+
     return {
       oversLimit: state.oversLimit,
       result: state.result ?? "",
       innings: [snap(state.innings[0]), snap(state.innings[1])],
+      // @ts-ignore — allow meta bag for downstream use
+      meta,
     };
   }
 
@@ -916,6 +947,9 @@ export default function Scoring() {
                           aWkts: String(state.innings[0].wickets),
                           bRuns: String(state.innings[1].runs),
                           bWkts: String(state.innings[1].wickets),
+                          // 🔹 carry logos through if available
+                          ...(teamALogoUri ? { teamALogoUri } : {}),
+                          ...(teamBLogoUri ? { teamBLogoUri } : {}),
                           summary: JSON.stringify(payload),
                         },
                       });

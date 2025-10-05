@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -40,6 +41,11 @@ type Params = {
   captainA?: string;
   captainB?: string;
   overs?: string; // ✅ carry overs
+  // ✅ optional logos (support both keys)
+  teamALogo?: string;
+  teamBLogo?: string;
+  teamALogoUri?: string;
+  teamBLogoUri?: string;
 };
 
 function safeJSON<T>(raw: unknown, fallback: T): T {
@@ -62,6 +68,11 @@ export default function TossScreen() {
   const captainB = (p.captainB && String(p.captainB)) || "";
   const overs = (p.overs && String(p.overs)) || ""; // ✅
 
+  // ✅ sanitize & read logos (works with both param names)
+  const sanitize = (u?: string) => (u && u !== "undefined" && u !== "null" ? u : "");
+  const teamALogo = sanitize((p.teamALogo as string) || (p.teamALogoUri as string));
+  const teamBLogo = sanitize((p.teamBLogo as string) || (p.teamBLogoUri as string));
+
   const preservedParams = useMemo(
     () => ({
       teamAName,
@@ -71,8 +82,13 @@ export default function TossScreen() {
       captainA,
       captainB,
       overs, // ✅ pass to scoring
+      // ✅ keep logos flowing both ways
+      teamALogo,
+      teamBLogo,
+      teamALogoUri: teamALogo,
+      teamBLogoUri: teamBLogo,
     }),
-    [teamAName, teamBName, teamA, teamB, captainA, captainB, overs]
+    [teamAName, teamBName, teamA, teamB, captainA, captainB, overs, teamALogo, teamBLogo]
   );
 
   const [caller, setCaller] = useState<"A" | "B">("A");
@@ -209,6 +225,24 @@ export default function TossScreen() {
   const winnerName = winner === "A" ? teamAName : winner === "B" ? teamBName : "";
   const callerName = caller === "A" ? teamAName : teamBName;
 
+  // ✅ tiny logo component (after name)
+  const Logo = ({ uri, size = 18 }: { uri?: string; size?: number }) =>
+    !!uri ? (
+      <Image
+        source={{ uri }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          marginLeft: 8, // after the name
+          backgroundColor: "rgba(255,255,255,0.06)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+        }}
+        resizeMode="cover"
+      />
+    ) : null;
+
   return (
     <View style={{ flex: 1 }}>
       <ImageBackground source={bg} resizeMode="cover" style={{ flex: 1 }}>
@@ -242,13 +276,30 @@ export default function TossScreen() {
                     onPress={() => !isTossing && !hasTossed && setCaller("A")}
                     style={[s.pill, caller === "A" && s.pillActive]}
                   >
-                    <Text style={[s.pillText, caller === "A" && s.pillTextActive]}>{teamAName}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%" }}>
+                      <Text
+                        style={[s.pillText, caller === "A" && s.pillTextActive]}
+                        numberOfLines={1}
+                      >
+                        {teamAName}
+                      </Text>
+                      <Logo uri={teamALogo} />
+                    </View>
                   </Pressable>
+
                   <Pressable
                     onPress={() => !isTossing && !hasTossed && setCaller("B")}
                     style={[s.pill, caller === "B" && s.pillActive]}
                   >
-                    <Text style={[s.pillText, caller === "B" && s.pillTextActive]}>{teamBName}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%" }}>
+                      <Text
+                        style={[s.pillText, caller === "B" && s.pillTextActive]}
+                        numberOfLines={1}
+                      >
+                        {teamBName}
+                      </Text>
+                      <Logo uri={teamBLogo} />
+                    </View>
                   </Pressable>
                 </View>
 

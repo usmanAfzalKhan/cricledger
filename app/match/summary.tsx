@@ -1,11 +1,12 @@
 // app/match/summary.tsx
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   ImageBackground,
   Modal,
   Platform,
@@ -19,6 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// ✅ same background + global overlays as other screens
 import bg from "../../assets/bg/stadium.png";
 import { styles as home, THEME } from "../styles/home";
 
@@ -57,9 +59,21 @@ type SummaryPayload = {
   oversLimit: number;
   result: string;
   innings: [InningsSnap, InningsSnap] | InningsSnap[];
+  // @ts-ignore - optional meta added by scoring for restart
+  meta?: {
+    teamAName?: string;
+    teamBName?: string;
+    teamA?: string[];
+    teamB?: string[];
+    captainA?: string;
+    captainB?: string;
+    oversLimit?: number;
+    teamALogoUri?: string;
+    teamBLogoUri?: string;
+  };
 };
 
-// ---- chart helper type (fixes the TS union errors) ----
+// ---- chart helper type (fixes TS union errors) ----
 type XY = { x: number; y: number };
 type ChartPack = {
   xMax: number;
@@ -131,13 +145,45 @@ function tableHTML(headers: string[], rows: string[][]) {
   </table>`;
 }
 
+// ==== Logo helpers for PDF embedding ====
+function guessMimeFromUri(uri: string) {
+  const u = uri.toLowerCase();
+  if (u.endsWith(".png")) return "image/png";
+  if (u.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+async function fileUriToDataUri(uri?: string | null) {
+  if (!uri) return null;
+  try {
+    const mime = guessMimeFromUri(uri);
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" as any });
+    return `data:${mime};base64,${base64}`;
+  } catch {
+    return null; // quietly skip if read fails
+  }
+}
+
 function buildPdfHtml(params: {
   title: string;
   subtitleLines: string[];
   i1?: InningsSnap;
   i2?: InningsSnap;
+  teamAName: string;
+  teamBName: string;
+  teamALogoDataUri?: string | null;
+  teamBLogoDataUri?: string | null;
 }) {
-  const { title, subtitleLines, i1, i2 } = params;
+  const {
+    title,
+    subtitleLines,
+    i1,
+    i2,
+    teamAName,
+    teamBName,
+    teamALogoDataUri,
+    teamBLogoDataUri,
+  } = params;
 
   const s1Bat = i1 ? i1.batters.map(b => [
     b.name + (!b.out ? "*" : ""),
@@ -180,6 +226,9 @@ function buildPdfHtml(params: {
         .grid { display:grid; grid-template-columns: 1fr; gap: 12px; }
         @media (min-width:640px){ .grid { grid-template-columns: 1fr 1fr; } }
         .footer { margin-top: 12px; font-size: 12px; color:#444; }
+        .teams { display:flex; align-items:center; justify-content:space-between; gap: 12px; margin-top: 6px; }
+        .team { display:flex; align-items:center; gap:8px; }
+        .team .logo { width:24px; height:24px; border-radius:50%; object-fit:cover; border:1px solid #ddd; }
       </style>
     </head>
     <body>
@@ -187,6 +236,18 @@ function buildPdfHtml(params: {
         <div class="card">
           <div class="title">${esc(title)}</div>
           ${subtitleLines.map(l => `<div class="sub">${esc(l)}</div>`).join("")}
+
+          <div class="teams">
+            <div class="team">
+              ${teamALogoDataUri ? `<img class="logo" src="${teamALogoDataUri}" />` : ""}
+              <div>${esc(teamAName)}</div>
+            </div>
+            <div class="team" style="opacity:.7">vs</div>
+            <div class="team">
+              ${teamBLogoDataUri ? `<img class="logo" src="${teamBLogoDataUri}" />` : ""}
+              <div>${esc(teamBName)}</div>
+            </div>
+          </div>
         </div>
 
         ${i1 && i2 ? `
@@ -235,12 +296,18 @@ export default function MatchSummary() {
     bRuns?: string;
     bWkts?: string;
     summary?: string; // detailed payload
+    teamALogoUri?: string;
+    teamBLogoUri?: string;
   }>();
 
   const teamAName = p.teamAName ?? "Team A";
   const teamBName = p.teamBName ?? "Team B";
   const oversCap = p.overs ?? "-";
   const result = p.result ?? "";
+
+  // logo URIs (optional)
+  const teamALogoUri = (p.teamALogoUri as string) || "";
+  const teamBLogoUri = (p.teamBLogoUri as string) || "";
 
   const payload = safeJSON<SummaryPayload | null>(p.summary, null);
   const i1 = payload?.innings?.[0] as InningsSnap | undefined;
@@ -253,7 +320,7 @@ export default function MatchSummary() {
 
   const showDetail = !!(i1 && i2);
 
-  // Tabs (players removed)
+  // Tabs
   const [tab, setTab] = useState<"scorecard" | "graphs">("scorecard");
   const [showEco, setShowEco] = useState(false);
 
@@ -264,11 +331,11 @@ export default function MatchSummary() {
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
     return `${teamAName} vs ${teamBName} — ${y}-${m}-${day}`;
-    };
+  };
   const [showTitleModal, setShowTitleModal] = useState(false);
   const [shareTitle, setShareTitle] = useState(defaultTitle());
 
-  // Series for charts (typed as ChartPack | null)
+  // Series for charts
   const rrSeries = useMemo<ChartPack | null>(() => {
     if (!showDetail || !i1 || !i2) return null;
     const s1Raw = seriesCumulativeRR(i1.pips).map(p => ({ x: p.x, y: p.y }));
@@ -304,7 +371,6 @@ export default function MatchSummary() {
     return { xMax, s1, s2, yTicks: ticks };
   }, [showDetail, i1, i2]);
 
-  // Over-by-over economy: start from (0,0) and extend to xMax for both innings
   const ecoSeries = useMemo<ChartPack | null>(() => {
     if (!showDetail || !i1 || !i2) return null;
     const e1Raw = seriesOverEconomy(i1.pips).map(p => ({ x: p.x, y: p.y }));
@@ -330,6 +396,10 @@ export default function MatchSummary() {
       `${teamAName}: ${aRuns}/${aWkts}  •  ${teamBName}: ${bRuns}/${bWkts}`,
     ].filter(Boolean);
 
+    // Convert local file URIs to data URIs for embedding in PDF
+    const teamALogoDataUri = await fileUriToDataUri(teamALogoUri);
+    const teamBLogoDataUri = await fileUriToDataUri(teamBLogoUri);
+
     // 1) PDF
     try {
       const html = buildPdfHtml({
@@ -337,6 +407,10 @@ export default function MatchSummary() {
         subtitleLines,
         i1: i1,
         i2: i2,
+        teamAName,
+        teamBName,
+        teamALogoDataUri,
+        teamBLogoDataUri,
       });
 
       const { uri } = await Print.printToFileAsync({ html });
@@ -443,6 +517,39 @@ export default function MatchSummary() {
     Share.share({ message: msg }).catch(() => {});
   }
 
+  // 🔹 Restart with same teams/captains/logos/overs
+// 🔹 Restart with same inputs but go back to Setup
+function onRestart() {
+  const meta = payload?.meta || {};
+
+  const teamA = meta.teamA;
+  const teamB = meta.teamB;
+
+  const params: Record<string, string> = {
+    teamAName: meta.teamAName || teamAName,
+    teamBName: meta.teamBName || teamBName,
+    overs: String(meta.oversLimit ?? oversCap ?? ""),
+  };
+
+  // keep planned counts consistent with current squads (if present)
+  if (teamA) params.teamAPlayers = String(teamA.length);
+  if (teamB) params.teamBPlayers = String(teamB.length);
+
+  // keep the exact squads/captains/logos so user can just continue
+  if (teamA) params.teamA = JSON.stringify(teamA);
+  if (teamB) params.teamB = JSON.stringify(teamB);
+  if (meta.captainA) params.captainA = meta.captainA;
+  if (meta.captainB) params.captainB = meta.captainB;
+  if (meta.teamALogoUri) params.teamALogoUri = meta.teamALogoUri;
+  if (meta.teamBLogoUri) params.teamBLogoUri = meta.teamBLogoUri;
+
+  // ⬅️ go to Setup (not Toss)
+  router.push({ pathname: "/match/setup", params });
+}
+
+
+  const isTie = (result || "").toLowerCase().includes("tied");
+
   return (
     <View style={{ flex: 1 }}>
       <ImageBackground source={bg} resizeMode="cover" style={{ flex: 1 }}>
@@ -456,10 +563,18 @@ export default function MatchSummary() {
 
             {/* Header card */}
             <View style={st.card}>
-              {!!result && <Text style={st.result}>{result}</Text>}
+              {!!result && <Text style={[st.result, isTie && { color: "#9EE7FF" }]}>{result}</Text>}
               <Text style={st.subtle}>
                 {teamAName} vs {teamBName}  •  Overs: {oversCap}
               </Text>
+
+              {(teamALogoUri || teamBLogoUri) ? (
+                <View style={st.teamsRow}>
+                  <TeamChip name={teamAName} logoUri={teamALogoUri} />
+                  <Text style={{ color: "rgba(237,239,230,0.75)", fontWeight: "800" }}>vs</Text>
+                  <TeamChip name={teamBName} logoUri={teamBLogoUri} />
+                </View>
+              ) : null}
 
               <View style={st.badgesRow}>
                 <View style={st.badge}><Text style={st.badgeTxt}>{teamAName}: {aRuns} / {aWkts}</Text></View>
@@ -533,7 +648,6 @@ export default function MatchSummary() {
                 <View style={{ gap: 12 }}>
                   {showDetail ? (
                     <>
-                      {/* Graphs header + description */}
                       <View style={st.card}>
                         <Text style={st.sectionTitle}>Performance Graphs</Text>
                         <Text style={st.graphDesc}>
@@ -613,6 +727,18 @@ export default function MatchSummary() {
 
               <Pressable onPress={onShare} style={st.ghostBtn}>
                 <Text style={st.ghostBtnTxt}>Share</Text>
+              </Pressable>
+            </View>
+
+            {/* 🔹 Restart action */}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 10 }}>
+              <Pressable
+                onPress={onRestart}
+                style={[st.primaryBtn, { backgroundColor: "#7FA7FF" }]}
+              >
+                <Text style={[st.primaryBtnTxt, { color: "#0B1220" }]}>
+                  Restart Match
+                </Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -720,12 +846,29 @@ function AxisLegend({ x, y }: { x: string; y: string }) {
   );
 }
 
+function TeamChip({ name, logoUri }: { name: string; logoUri?: string }) {
+  return (
+    <View style={st.teamChip}>
+      {logoUri ? (
+        <Image source={{ uri: logoUri }} style={st.teamLogo} resizeMode="cover" />
+      ) : (
+        <View style={[st.teamLogo, { backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)" }]} />
+      )}
+      <Text style={st.teamName} numberOfLines={1}>{name}</Text>
+    </View>
+  );
+}
+
 // ========= styles =========
 const st = StyleSheet.create({
   title: { color: "#EDEFE6", fontSize: 28, fontWeight: "900" },
   result: { color: "#FFEB99", fontWeight: "900", fontSize: 18 },
   subtle: { color: "#EDEFE6", marginTop: 8 },
   badgesRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  teamsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 },
+  teamChip: { flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "45%" },
+  teamLogo: { width: 28, height: 28, borderRadius: 14 },
+  teamName: { color: "#EDEFE6", fontWeight: "800" },
   badge: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderColor: "rgba(255,255,255,0.16)",

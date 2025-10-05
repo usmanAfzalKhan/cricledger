@@ -2,6 +2,7 @@
 import { Link, useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 import {
+  Image,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -23,6 +24,11 @@ type Params = {
   teamAName?: string;       // optional
   teamBName?: string;       // optional
   overs?: string;           // ✅ carry overs forward
+  // ✅ optional logo URIs (support both keys)
+  teamALogo?: string;
+  teamBLogo?: string;
+  teamALogoUri?: string;
+  teamBLogoUri?: string;
 };
 
 export default function Lineups() {
@@ -31,6 +37,14 @@ export default function Lineups() {
   const teamAName = (p.teamAName ?? "Team A") as string;
   const teamBName = (p.teamBName ?? "Team B") as string;
   const overs = (p.overs as string) ?? ""; // ✅
+
+  // ✅ sanitize incoming URIs (avoid literal "undefined"/"null")
+  const sanitize = (u?: string) =>
+    u && u !== "undefined" && u !== "null" ? u : "";
+
+  // ✅ read logos (support both param names)
+  const teamALogo = sanitize((p.teamALogo as string) || (p.teamALogoUri as string));
+  const teamBLogo = sanitize((p.teamBLogo as string) || (p.teamBLogoUri as string));
 
   const teamA: string[] = useMemo(() => {
     try { return JSON.parse((p.teamA as string) ?? "[]"); } catch { return []; }
@@ -58,6 +72,25 @@ export default function Lineups() {
     });
   };
 
+  // ✅ logo helper
+  const Logo = ({ uri, size = 22 }: { uri?: string; size?: number }) =>
+    !!uri ? (
+      <Image
+        source={{ uri }}
+        resizeMode="cover"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          marginLeft: 8,              // after the name → left margin
+          backgroundColor: "rgba(255,255,255,0.06)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+          flexShrink: 0,
+        }}
+      />
+    ) : null;
+
   return (
     <View style={{ flex: 1 }}>
       {/* ✅ Stadium background + overlays */}
@@ -84,6 +117,11 @@ export default function Lineups() {
                     teamAPlayers: String(teamA.length),
                     teamBPlayers: String(teamB.length),
                     overs, // ✅ keep overs when going back
+                    // ✅ forward both keys so whichever the screen expects will work
+                    teamALogo,
+                    teamBLogo,
+                    teamALogoUri: teamALogo,
+                    teamBLogoUri: teamBLogo,
                   },
                 }}
                 asChild
@@ -94,26 +132,71 @@ export default function Lineups() {
               <View style={{ width: 40 }} />
             </View>
 
-            {/* Versus banner (perfectly centered) */}
+            {/* Versus banner — name first, logo AFTER the name.
+                Also: left side cluster is right-aligned so it sits near the VS pill. */}
             <View style={styles.vsCard}>
-              <Text style={styles.teamTitleLeft} numberOfLines={1}>{teamAName}</Text>
+              {/* LEFT half */}
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "flex-end", // 🔧 pull cluster toward VS
+                  minWidth: 0,
+                }}
+              >
+                <Text
+                  style={[styles.teamTitleLeft, { flexGrow: 0, flexShrink: 1, textAlign: "right" }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {teamAName}
+                </Text>
+                <Logo uri={teamALogo} size={24} />
+              </View>
+
               <View style={styles.vsPill}>
                 <Text style={styles.vsText}>VS</Text>
               </View>
-              <Text style={styles.teamTitleRight} numberOfLines={1}>{teamBName}</Text>
+
+              {/* RIGHT half */}
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "flex-start", // 🔧 pull cluster toward VS
+                  minWidth: 0,
+                }}
+              >
+                <Text
+                  style={[styles.teamTitleRight, { flexGrow: 0, flexShrink: 1, textAlign: "left" }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {teamBName}
+                </Text>
+                <Logo uri={teamBLogo} size={24} />
+              </View>
             </View>
 
-            {/* Squads */}
+            {/* Squads (also name first, then logo) */}
             <View style={styles.squadsCard}>
               <View style={styles.squadCol}>
-                <Text style={styles.squadHead}>{teamAName}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={styles.squadHead}>{teamAName}</Text>
+                  <Logo uri={teamALogo} />
+                </View>
                 <View style={styles.list}>{renderList(teamA, capA)}</View>
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.squadCol}>
-                <Text style={styles.squadHead}>{teamBName}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={styles.squadHead}>{teamBName}</Text>
+                  <Logo uri={teamBLogo} />
+                </View>
                 <View style={styles.list}>{renderList(teamB, capB)}</View>
               </View>
             </View>
@@ -123,7 +206,7 @@ export default function Lineups() {
               Confirm your lineups below, then proceed to the toss.
             </Text>
 
-            {/* ✅ Toss button (now forwarding overs) */}
+            {/* ✅ Toss button (forward overs + logos) */}
             <Link
               href={{
                 pathname: "/match/toss",
@@ -135,6 +218,10 @@ export default function Lineups() {
                   teamAName,
                   teamBName,
                   overs, // ✅ forward overs to toss
+                  teamALogo,
+                  teamBLogo,
+                  teamALogoUri: teamALogo,
+                  teamBLogoUri: teamBLogo,
                 },
               }}
               asChild

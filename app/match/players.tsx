@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Image,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -53,11 +54,16 @@ export default function PlayersScreen() {
     teamB?: string;
     captainA?: string;
     captainB?: string;
+    teamALogoUri?: string;
+    teamBLogoUri?: string;
   }>();
 
   const teamALabel = (params.teamAName as string)?.trim() || "Team A";
   const teamBLabel = (params.teamBName as string)?.trim() || "Team B";
   const overs = (params.overs as string) ?? ""; // ✅
+
+  const teamALogoUri = params.teamALogoUri ? String(params.teamALogoUri) : undefined;
+  const teamBLogoUri = params.teamBLogoUri ? String(params.teamBLogoUri) : undefined;
 
   const plannedA0 = toInt(params.teamAPlayers, 6);
   const plannedB0 = toInt(params.teamBPlayers, 6);
@@ -191,6 +197,11 @@ export default function PlayersScreen() {
 
   const validate = (): true | string[] => {
     const errors: string[] = [];
+
+    // ✳️ ensure at least 2 named players per team
+    if (aCount < 2) errors.push("Team A must have at least 2 players.");
+    if (bCount < 2) errors.push("Team B must have at least 2 players.");
+
     if (teamA.some((n) => !n.trim())) errors.push("Team A has empty player fields.");
     if (teamB.some((n) => !n.trim())) errors.push("Team B has empty player fields.");
     if (captainA === null) errors.push("Select a captain for Team A.");
@@ -204,17 +215,21 @@ export default function PlayersScreen() {
       Alert.alert("Can't finalize yet", ok.join("\n"));
       return;
     }
+    const params: Record<string, string> = {
+      teamA: JSON.stringify(teamA),
+      teamB: JSON.stringify(teamB),
+      captainA: captainA != null ? String(captainA) : "",
+      captainB: captainB != null ? String(captainB) : "",
+      teamAName: teamALabel,
+      teamBName: teamBLabel,
+      overs, // ✅ pass overs forward
+    };
+    if (teamALogoUri) params.teamALogoUri = teamALogoUri;
+    if (teamBLogoUri) params.teamBLogoUri = teamBLogoUri;
+
     router.push({
       pathname: "/match/lineups",
-      params: {
-        teamA: JSON.stringify(teamA),
-        teamB: JSON.stringify(teamB),
-        captainA: captainA != null ? String(captainA) : "",
-        captainB: captainB != null ? String(captainB) : "",
-        teamAName: teamALabel,
-        teamBName: teamBLabel,
-        overs, // ✅ pass overs forward
-      },
+      params,
     });
   };
 
@@ -292,11 +307,24 @@ export default function PlayersScreen() {
                       router.push({
                         pathname: "/match/setup",
                         params: {
+                          // names & overs
                           teamAName: teamALabel,
                           teamBName: teamBLabel,
-                          teamAPlayers: String(plannedA),
-                          teamBPlayers: String(plannedB),
-                          overs, // ✅ keep overs on back
+                          overs,
+
+                          // keep counts in sync with the current arrays
+                          teamAPlayers: String(teamA.length),
+                          teamBPlayers: String(teamB.length),
+
+                          // 🔒 preserve the exact squads + captains
+                          teamA: JSON.stringify(teamA),
+                          teamB: JSON.stringify(teamB),
+                          ...(captainA != null ? { captainA: String(captainA) } : {}),
+                          ...(captainB != null ? { captainB: String(captainB) } : {}),
+
+                          // logos too
+                          ...(teamALogoUri ? { teamALogoUri } : {}),
+                          ...(teamBLogoUri ? { teamBLogoUri } : {}),
                         },
                       })
                     }
@@ -313,11 +341,19 @@ export default function PlayersScreen() {
                 {/* Team A */}
                 <View style={styles.teamCard}>
                   <View style={styles.teamHeader}>
-                    <View style={styles.teamNameWrap}>
-                      <Text style={styles.teamName}>{teamALabel}</Text>
-                      <Text style={styles.teamMeta}>Players (from Setup): {plannedA}</Text>
-                      <Text style={styles.teamMeta}>Enter player names below.</Text>
-                      <Text style={styles.teamMeta}>Current entered: {aCount}</Text>
+                    <View style={[styles.teamNameWrap, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                      {teamALogoUri ? (
+                        <Image
+                          source={{ uri: teamALogoUri }}
+                          style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}
+                        />
+                      ) : null}
+                      <View>
+                        <Text style={styles.teamName}>{teamALabel}</Text>
+                        <Text style={styles.teamMeta}>Players (from Setup): {plannedA}</Text>
+                        <Text style={styles.teamMeta}>Enter player names below.</Text>
+                        <Text style={styles.teamMeta}>Current entered: {aCount}</Text>
+                      </View>
                     </View>
                     {captainA !== null && captainNameA ? (
                       <Text style={styles.teamMeta}>Captain: {captainNameA}</Text>
@@ -349,11 +385,19 @@ export default function PlayersScreen() {
                 {/* Team B */}
                 <View style={styles.teamCard}>
                   <View style={styles.teamHeader}>
-                    <View style={styles.teamNameWrap}>
-                      <Text style={styles.teamName}>{teamBLabel}</Text>
-                      <Text style={styles.teamMeta}>Players (from Setup): {plannedB}</Text>
-                      <Text style={styles.teamMeta}>Enter player names below.</Text>
-                      <Text style={styles.teamMeta}>Current entered: {bCount}</Text>
+                    <View style={[styles.teamNameWrap, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                      {teamBLogoUri ? (
+                        <Image
+                          source={{ uri: teamBLogoUri }}
+                          style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" }}
+                        />
+                      ) : null}
+                      <View>
+                        <Text style={styles.teamName}>{teamBLabel}</Text>
+                        <Text style={styles.teamMeta}>Players (from Setup): {plannedB}</Text>
+                        <Text style={styles.teamMeta}>Enter player names below.</Text>
+                        <Text style={styles.teamMeta}>Current entered: {bCount}</Text>
+                      </View>
                     </View>
                     {captainB !== null && captainNameB ? (
                       <Text style={styles.teamMeta}>Captain: {captainNameB}</Text>
@@ -387,10 +431,14 @@ export default function PlayersScreen() {
                   onPress={onFinalize}
                   style={[
                     styles.nextBtn,
-                    (teamA.some((n) => !n.trim()) ||
+                    (
+                      teamA.some((n) => !n.trim()) ||
                       teamB.some((n) => !n.trim()) ||
                       captainA === null ||
-                      captainB === null) && styles.nextBtnDisabled,
+                      captainB === null ||
+                      aCount < 2 ||
+                      bCount < 2
+                    ) && styles.nextBtnDisabled,
                   ]}
                 >
                   <Text style={styles.nextText}>Finalize Teams</Text>

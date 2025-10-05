@@ -1,17 +1,20 @@
 // app/match/setup.tsx
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { Link, router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-    ImageBackground,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -30,6 +33,9 @@ export default function MatchSetup() {
     teamAPlayers?: string;
     teamBPlayers?: string;
     overs?: string;
+    // optional logos (preserve if returning back)
+    teamALogoUri?: string;
+    teamBLogoUri?: string;
   }>();
 
   const [teamAName, setTeamAName] = useState((p.teamAName as string) ?? "");
@@ -37,6 +43,10 @@ export default function MatchSetup() {
   const [teamBName, setTeamBName] = useState((p.teamBName as string) ?? "");
   const [teamBPlayers, setTeamBPlayers] = useState((p.teamBPlayers as string) ?? "");
   const [overs, setOvers] = useState((p.overs as string) ?? "");
+
+  // NEW: optional logos (restored from params if present)
+  const [teamALogoUri, setTeamALogoUri] = useState<string>((p.teamALogoUri as string) ?? "");
+  const [teamBLogoUri, setTeamBLogoUri] = useState<string>((p.teamBLogoUri as string) ?? "");
 
   const isDigits = (v: string) => /^\d+$/.test(v);
 
@@ -50,20 +60,52 @@ export default function MatchSetup() {
     );
   }, [teamAName, teamBName, teamAPlayers, teamBPlayers, overs]);
 
+  async function pickLogo(setter: (uri: string) => void) {
+    // request permission (gracefully handle denial)
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      // soft fail: no alert spam — user can try again
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (!res.canceled && res.assets?.[0]?.uri) {
+      setter(res.assets[0].uri);
+    }
+  }
+
   async function onNext() {
     if (!isValid) return;
+
+    // 🔹 MIN-2 GUARD (no UI rewrite): quietly block if either side < 2
+    const aN = Number(teamAPlayers || "0");
+    const bN = Number(teamBPlayers || "0");
+    if (!Number.isFinite(aN) || !Number.isFinite(bN) || aN < 2 || bN < 2) {
+      Alert.alert("Need at least 2 players", "Each team must have 2 or more players.");
+      return;
+    }
+
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {}
+    // build params; include logos only if provided
+    const params: Record<string, string> = {
+      teamAName: teamAName.trim(),
+      teamAPlayers,
+      teamBName: teamBName.trim(),
+      teamBPlayers,
+      overs,
+    };
+    if (teamALogoUri) params.teamALogoUri = teamALogoUri;
+    if (teamBLogoUri) params.teamBLogoUri = teamBLogoUri;
+
     router.push({
       pathname: "/match/players",
-      params: {
-        teamAName: teamAName.trim(),
-        teamAPlayers,
-        teamBName: teamBName.trim(),
-        teamBPlayers,
-        overs,
-      },
+      params,
     });
   }
 
@@ -125,8 +167,78 @@ export default function MatchSetup() {
                     </View>
                   </View>
 
+                  {/* NEW: Team A Logo (optional) */}
+                  <Text style={[s.label, { marginTop: 10 }]}>Team A Logo (optional)</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.16)",
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {teamALogoUri ? (
+                        <Image
+                          source={{ uri: teamALogoUri }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={{ color: "rgba(237,239,230,0.6)", fontSize: 10 }}>
+                          no logo
+                        </Text>
+                      )}
+                    </View>
+
+                    <Pressable
+                      onPress={() => pickLogo(setTeamALogoUri)}
+                      style={({ pressed }) => [
+                        {
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          backgroundColor: pressed
+                            ? "rgba(255,255,255,0.12)"
+                            : "rgba(255,255,255,0.06)",
+                          borderColor: "rgba(255,255,255,0.16)",
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: "#EDEFE6", fontWeight: "800" }}>
+                        {teamALogoUri ? "Change" : "Add Logo"}
+                      </Text>
+                    </Pressable>
+
+                    {teamALogoUri ? (
+                      <Pressable
+                        onPress={() => setTeamALogoUri("")}
+                        style={({ pressed }) => [
+                          {
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            backgroundColor: pressed
+                              ? "rgba(229,57,53,0.22)"
+                              : "rgba(229,57,53,0.18)",
+                            borderColor: "#E53935",
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: "#fff", fontWeight: "900" }}>Remove</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
                   {/* Team B row */}
-                  <Text style={s.label}>Team B — Enter Team Name</Text>
+                  <Text style={[s.label, { marginTop: 14 }]}>Team B — Enter Team Name</Text>
                   <View style={s.row}>
                     <TextInput
                       value={teamBName}
@@ -152,8 +264,78 @@ export default function MatchSetup() {
                     </View>
                   </View>
 
+                  {/* NEW: Team B Logo (optional) */}
+                  <Text style={[s.label, { marginTop: 10 }]}>Team B Logo (optional)</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        overflow: "hidden",
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.16)",
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {teamBLogoUri ? (
+                        <Image
+                          source={{ uri: teamBLogoUri }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={{ color: "rgba(237,239,230,0.6)", fontSize: 10 }}>
+                          no logo
+                        </Text>
+                      )}
+                    </View>
+
+                    <Pressable
+                      onPress={() => pickLogo(setTeamBLogoUri)}
+                      style={({ pressed }) => [
+                        {
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          backgroundColor: pressed
+                            ? "rgba(255,255,255,0.12)"
+                            : "rgba(255,255,255,0.06)",
+                          borderColor: "rgba(255,255,255,0.16)",
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: "#EDEFE6", fontWeight: "800" }}>
+                        {teamBLogoUri ? "Change" : "Add Logo"}
+                      </Text>
+                    </Pressable>
+
+                    {teamBLogoUri ? (
+                      <Pressable
+                        onPress={() => setTeamBLogoUri("")}
+                        style={({ pressed }) => [
+                          {
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            backgroundColor: pressed
+                              ? "rgba(229,57,53,0.22)"
+                              : "rgba(229,57,53,0.18)",
+                            borderColor: "#E53935",
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: "#fff", fontWeight: "900" }}>Remove</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
                   {/* Overs */}
-                  <Text style={s.label}>Number of Overs</Text>
+                  <Text style={[s.label, { marginTop: 14 }]}>Number of Overs</Text>
                   <TextInput
                     value={overs}
                     onChangeText={(v) => setOvers(v.replace(/[^0-9]/g, ""))}
