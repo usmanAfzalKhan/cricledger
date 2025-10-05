@@ -3,9 +3,9 @@ import { Link } from "expo-router";
 import { ImageBackground, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import bg from "../assets/bg/stadium.png"; // ✅ PNG only
+import bg from "../assets/bg/stadium.png"; // PNG only
 import LogoMark from "../components/LogoMark";
-import { styles } from "./styles/home"; // ✅ correct relative path
+import { styles } from "./styles/home";
 
 export default function Home() {
   return (
@@ -34,6 +34,15 @@ export default function Home() {
               <Pressable style={styles.settingsBtn}>
                 <Text style={styles.settingsIcon}>🤝</Text>
                 <Text style={styles.settingsText}>Cricket Etiquette</Text>
+              </Pressable>
+            </Link>
+          </View>
+
+          {/* --- Footer credit / About link --- */}
+          <View style={styles.footer}>
+            <Link href="/about" asChild>
+              <Pressable style={styles.footerBtn} hitSlop={8}>
+                <Text style={styles.footerText}>Built by Taha Khan</Text>
               </Pressable>
             </Link>
           </View>

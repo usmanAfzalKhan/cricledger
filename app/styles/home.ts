@@ -11,11 +11,11 @@ export const THEME = {
 };
 
 export const styles = StyleSheet.create({
-safe: {
-  flex: 1,
-  backgroundColor: "transparent", // ← must be transparent
-  paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0,
-},
+  safe: {
+    flex: 1,
+    backgroundColor: "transparent", // ← must be transparent
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0,
+  },
 
   // ambient blobs (optional, sit under scrim)
   bgGlow: {
@@ -118,6 +118,26 @@ safe: {
     color: THEME.TEXT_MUTED,
     fontSize: 13,
     fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+
+  // --- footer credit / about link ---
+  footer: {
+    alignItems: "center",
+    paddingBottom: 16,
+    paddingTop: 8,
+  },
+  footerBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: THEME.BORDER,
+  },
+  footerText: {
+    color: "rgba(237,239,230,0.88)",
+    fontWeight: "800",
     letterSpacing: 0.2,
   },
 });
