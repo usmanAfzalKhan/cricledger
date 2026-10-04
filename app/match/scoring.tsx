@@ -32,6 +32,21 @@ import { styles as s } from "../styles/scoring";
 import { OverProgress, Pip } from "../../components/scoring/OverProgress";
 import { PadKey, RunPad } from "../../components/scoring/RunPad";
 import { SelectModal } from "../../components/scoring/SelectModal";
+import {
+  type Dismissal,
+  type InningsState,
+  type MatchState,
+  type TeamID,
+  econ,
+  load,
+  newInnings,
+  ovText,
+  rr,
+  safeJSON,
+  save,
+  toInt,
+  toTwo,
+} from "../../components/scoring/matchModel";
 
 /** Static images for guide */
 const IMG = {
@@ -44,120 +59,6 @@ const IMG = {
   out: outImg,
   deadBall: deadBallImg,
 };
-
-/** AsyncStorage shim (safe if package not installed yet) */
-type StorageLike = {
-  setItem(k: string, v: string): Promise<void>;
-  getItem(k: string): Promise<string | null>;
-};
-const Storage: StorageLike = {
-  async setItem() {},
-  async getItem() {
-    return null;
-  },
-};
-
-type Dismissal = "Bowled" | "Caught" | "Run-out";
-type TeamID = "A" | "B";
-type Batter = {
-  name: string;
-  runs: number;
-  balls: number;
-  out?: { how: Dismissal | "Declared"; by?: string; catcher?: string; runOutBy?: string };
-};
-type Bowler = { name: string; conceded: number; legalBalls: number };
-type InningsState = {
-  battingTeamName: string;
-  bowlingTeamName: string;
-  battingSquad: string[];
-  bowlingSquad: string[];
-  strikerIdx: number | null;
-  nonStrikerIdx: number | null;
-  bowlerIdx: number | null;
-  prevBowlerIdx: number | null;
-  runs: number;
-  wickets: number;
-  legalBalls: number;
-  completedOvers: number;
-  pips: Pip[];
-  batters: Batter[];
-  bowlers: Bowler[];
-  freeHit: boolean;
-  hatTrickCandidate: { bowlerIdx: number; chain: number } | null;
-  batterMilestonesShown: Record<string, { fifty?: boolean; hundred?: boolean }>;
-  showSheets: boolean;
-};
-type MatchState = {
-  oversLimit: number;
-  inningsIndex: 0 | 1;
-  innings: [InningsState, InningsState];
-  target?: number;
-  result?: string;
-  matchOver: boolean;
-  superOvers: { active: boolean; index: 0 | 1; innings: [InningsState, InningsState] } | null;
-};
-
-const KEY = "cricledger_match_v1";
-const ovText = (completed: number, ballsInOver: number) => `${completed}.${ballsInOver}`;
-const econ = (b: Bowler) => (b.legalBalls === 0 ? 0 : b.conceded / (b.legalBalls / 6));
-const rr = (runs: number, totalLegalBalls: number) =>
-  totalLegalBalls === 0 ? 0 : runs / (totalLegalBalls / 6);
-const toTwo = (n: number) => n.toFixed(2);
-function safeJSON<T>(raw: unknown, fallback: T): T {
-  if (typeof raw !== "string") return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-const toInt = (v: any, d = 1) => {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : d;
-};
-
-function newInnings(
-  battingTeamName: string,
-  bowlingTeamName: string,
-  battingSquad: string[],
-  bowlingSquad: string[]
-): InningsState {
-  return {
-    battingTeamName,
-    bowlingTeamName,
-    battingSquad,
-    bowlingSquad,
-    strikerIdx: null,
-    nonStrikerIdx: null,
-    bowlerIdx: null,
-    prevBowlerIdx: null,
-    runs: 0,
-    wickets: 0,
-    legalBalls: 0,
-    completedOvers: 0,
-    pips: [],
-    batters: battingSquad.map((name) => ({ name, runs: 0, balls: 0 })),
-    bowlers: bowlingSquad.map((name) => ({ name, conceded: 0, legalBalls: 0 })),
-    freeHit: false,
-    hatTrickCandidate: null,
-    batterMilestonesShown: {},
-    showSheets: false,
-  };
-}
-
-async function save(state: MatchState) {
-  try {
-    await Storage.setItem(KEY, JSON.stringify(state));
-  } catch {}
-}
-async function load(): Promise<MatchState | null> {
-  try {
-    const raw = await Storage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as MatchState) : null;
-  } catch {
-    return null;
-  }
-}
 
 /* ============== Themed pill picker with optional Close ============== */
 type PickerOpt = { label: string; value: string | number; disabled?: boolean };
