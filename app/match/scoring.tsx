@@ -28,7 +28,7 @@ import wideImg from "../../assets/signals/optimized/wide.png";
 import { styles as home, THEME } from "../styles/home";
 import { styles as s } from "../styles/scoring";
 
-import { OverProgress, Pip } from "../../components/scoring/OverProgress";
+import { OverProgress } from "../../components/scoring/OverProgress";
 import { PadKey, RunPad } from "../../components/scoring/RunPad";
 import { SelectModal } from "../../components/scoring/SelectModal";
 import { PillPickerModal } from "../../components/scoring/PillPickerModal";
@@ -47,6 +47,13 @@ import {
   toInt,
   toTwo,
 } from "../../components/scoring/matchModel";
+import {
+  availableCount,
+  canDeclare,
+  currentOverPips,
+  lessThanTwoAvailable,
+  swapStrike,
+} from "../../components/scoring/scoringHelpers";
 
 /** Static images for guide */
 const IMG = {
@@ -202,22 +209,7 @@ export default function Scoring() {
   const totalLegal = inn.completedOvers * ballsPerOver + inn.legalBalls;
   const currRR = rr(inn.runs, totalLegal);
 
-  // ===== derive current over pips (shows only ongoing over) =====
-  function currentOverPips(all: Pip[], legalBallsInOver: number): Pip[] {
-    if (all.length === 0) return [];
-    const out: Pip[] = [];
-    let legal = 0;
-    for (let i = all.length - 1; i >= 0; i--) {
-      const p = all[i];
-      const isLegal = p.t === "run" || p.t === "wicket" || p.t === "b" || p.t === "lb";
-      out.push(p);
-      if (isLegal) {
-        legal += 1;
-        if (legal === legalBallsInOver) break;
-      }
-    }
-    return out.reverse();
-  }
+  // Current over progress
   const pipsForThisOver = currentOverPips(inn.pips, inn.legalBalls);
 
   // UI state
@@ -281,11 +273,6 @@ export default function Scoring() {
       return next;
     });
   }
-
-  // ===== availability helpers =====
-  const availableCount = (i: InningsState) => i.batters.filter((b) => !b.out).length; // NOT OUT only
-  const lessThanTwoAvailable = (i: InningsState) => availableCount(i) < 2;
-  const canDeclare = (i: InningsState) => availableCount(i) >= 3; // must leave at least 2 after declaring one
 
   // Unified: mutate innings and apply transitions atomically
   function setInnWithTransitions(up: (i: InningsState) => void) {
@@ -355,11 +342,6 @@ export default function Scoring() {
     if (fn) fn();
   }
 
-  function swapStrike(i: InningsState) {
-    const a = i.strikerIdx;
-    i.strikerIdx = i.nonStrikerIdx;
-    i.nonStrikerIdx = a;
-  }
   function ensureMilestones(i: InningsState, idx: number) {
     const b = i.batters[idx];
     const key = b.name;
