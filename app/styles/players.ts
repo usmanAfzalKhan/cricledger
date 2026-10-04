@@ -136,3 +136,5 @@ export const styles = StyleSheet.create({
   nextIcon: { color: "#0B1220", fontSize: 16 },
   nextText: { color: "#0B1220", fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
 });
+
+export default function __IGNORE_STYLES_ROUTE__() { return null; }

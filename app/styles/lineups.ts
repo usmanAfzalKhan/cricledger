@@ -159,3 +159,5 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
+
+export default function __IGNORE_STYLES_ROUTE__() { return null; }

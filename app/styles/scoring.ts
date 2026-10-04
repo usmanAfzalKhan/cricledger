@@ -69,3 +69,5 @@ export const styles = StyleSheet.create({
   flexRow: { flexDirection: "row", alignItems: "center" },
   mr8: { marginRight: 8 },
 });
+
+export default function __IGNORE_STYLES_ROUTE__() { return null; }
