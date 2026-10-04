@@ -1,9 +1,10 @@
 // app/index.tsx
+
 import { Link } from "expo-router";
 import { ImageBackground, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import bg from "../assets/bg/stadium.png"; // PNG only
+import bg from "../assets/bg/stadium.png";
 import LogoMark from "../components/LogoMark";
 import { styles } from "./styles/home";
 
@@ -22,6 +23,7 @@ export default function Home() {
               <Text style={styles.title}>CricLedger</Text>
             </View>
 
+            {/* Full match */}
             <Link href="/match/setup" asChild>
               <Pressable style={styles.startBtn}>
                 <Text style={styles.startIcon}>🏏</Text>
@@ -29,7 +31,14 @@ export default function Home() {
               </Pressable>
             </Link>
 
-            {/* Replaces Settings → Cricket Etiquette */}
+            {/* Quick match */}
+            <Link href="/match/quick/setup" asChild>
+              <Pressable style={styles.quickBtn}>
+                <Text style={styles.quickIcon}>⚡</Text>
+                <Text style={styles.quickText}>Quick Match</Text>
+              </Pressable>
+            </Link>
+
             <Link href="/ethics" asChild>
               <Pressable style={styles.settingsBtn}>
                 <Text style={styles.settingsIcon}>🤝</Text>
@@ -38,7 +47,6 @@ export default function Home() {
             </Link>
           </View>
 
-          {/* --- Footer credit / About link --- */}
           <View style={styles.footer}>
             <Link href="/about" asChild>
               <Pressable style={styles.footerBtn} hitSlop={8}>
