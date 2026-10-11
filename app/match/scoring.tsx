@@ -54,6 +54,11 @@ import {
   lessThanTwoAvailable,
   swapStrike,
 } from "../../components/scoring/scoringHelpers";
+import {
+  endOver,
+  ensureMilestones,
+  onLegalBallComplete,
+} from "../../components/scoring/scoringEvents";
 
 /** Static images for guide */
 const IMG = {
@@ -342,41 +347,6 @@ export default function Scoring() {
     if (fn) fn();
   }
 
-  function ensureMilestones(i: InningsState, idx: number) {
-    const b = i.batters[idx];
-    const key = b.name;
-    const seen = i.batterMilestonesShown[key] || {};
-    if (b.runs >= 50 && !seen.fifty) {
-      i.batterMilestonesShown[key] = { ...seen, fifty: true };
-      flash(`FIFTY for ${b.name}`);
-    }
-    if (b.runs >= 100 && !seen.hundred) {
-      i.batterMilestonesShown[key] = { ...seen, hundred: true };
-      flash(`CENTURY for ${b.name}`);
-    }
-  }
-  function onLegalBallComplete(i: InningsState, wicketByBowler: boolean) {
-    if (wicketByBowler && i.bowlerIdx !== null) {
-      const same = i.hatTrickCandidate && i.hatTrickCandidate.bowlerIdx === i.bowlerIdx;
-      const chain = same ? i.hatTrickCandidate!.chain + 1 : 1;
-      i.hatTrickCandidate = { bowlerIdx: i.bowlerIdx, chain };
-      if (chain === 3) flash("HATTRICK!!!");
-    } else {
-      i.hatTrickCandidate = null;
-    }
-  }
-
-  function endOver(i: InningsState, lastBallOdd: boolean) {
-    i.completedOvers += 1;
-    i.legalBalls = 0;
-    if (!lastBallOdd) {
-      swapStrike(i);
-    }
-    i.prevBowlerIdx = i.bowlerIdx;
-    i.bowlerIdx = null;
-    setOpenBowler(true); // bowler for NEXT over (closed if innings ends)
-  }
-
   const needSetup =
     inn.strikerIdx === null || inn.nonStrikerIdx === null || inn.bowlerIdx === null;
 
@@ -413,7 +383,7 @@ export default function Scoring() {
       if (i.strikerIdx !== null) {
         i.batters[i.strikerIdx].runs += n;
         i.batters[i.strikerIdx].balls += 1;
-        ensureMilestones(i, i.strikerIdx);
+        ensureMilestones(i, i.strikerIdx, flash);
       }
       if (i.bowlerIdx !== null) {
         i.bowlers[i.bowlerIdx].conceded += n;
@@ -424,12 +394,12 @@ export default function Scoring() {
 
       const isOverEnd = i.legalBalls === 6;
       if (isOverEnd) {
-        endOver(i, n % 2 === 1);
+        endOver(i, n % 2 === 1, () => setOpenBowler(true));
       } else if (n % 2 === 1) {
         swapStrike(i);
       }
 
-      onLegalBallComplete(i, false);
+      onLegalBallComplete(i, false, flash);
       i.freeHit = false;
     });
   }
@@ -464,12 +434,12 @@ export default function Scoring() {
 
         const isOverEnd = i.legalBalls === 6;
         if (isOverEnd) {
-          endOver(i, v % 2 === 1);
+          endOver(i, v % 2 === 1, () => setOpenBowler(true));
         } else if (v % 2 === 1) {
           swapStrike(i);
         }
 
-        onLegalBallComplete(i, false);
+        onLegalBallComplete(i, false, flash);
         i.freeHit = false;
       }
     });
@@ -509,7 +479,7 @@ export default function Scoring() {
       if (wicketCounts) i.wickets += 1;
 
       const bowlerWicket = wicketCounts && (how === "Bowled" || how === "Caught");
-      onLegalBallComplete(i, !!bowlerWicket);
+      onLegalBallComplete(i, !!bowlerWicket, flash);
 
       // Determine over end and all-out NOW
       const isOverEnd = i.legalBalls === 6;
@@ -531,7 +501,7 @@ export default function Scoring() {
       } else {
         // Not all-out — must select incoming batter immediately
         setIncomingBatterOpen(true);
-        if (isOverEnd) endOver(i, false);
+        if (isOverEnd) endOver(i, false, () => setOpenBowler(true));
       }
 
       i.freeHit = false;
