@@ -59,6 +59,7 @@ import {
   ensureMilestones,
   onLegalBallComplete,
 } from "../../components/scoring/scoringEvents";
+import { buildSummaryPayload } from "../../components/scoring/summaryPayload";
 
 /** Static images for guide */
 const IMG = {
@@ -583,42 +584,6 @@ export default function Scoring() {
     transform: [{ scale: stripAck.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) }],
   };
 
-  // --- build summary payload for summary screen
-  function buildSummaryPayload(state: MatchState) {
-    const snap = (i: InningsState) => ({
-      battingTeamName: i.battingTeamName,
-      bowlingTeamName: i.bowlingTeamName,
-      runs: i.runs,
-      wickets: i.wickets,
-      completedOvers: i.completedOvers,
-      legalBalls: i.legalBalls,
-      pips: i.pips,
-      batters: i.batters.map(b => ({ name: b.name, runs: b.runs, balls: b.balls, out: b.out })),
-      bowlers: i.bowlers.map(b => ({ name: b.name, conceded: b.conceded, legalBalls: b.legalBalls })),
-    });
-
-    // 🔹 Add meta so Summary can restart with identical squads/logos without asking again
-    const meta = {
-      teamAName,
-      teamBName,
-      teamA,
-      teamB,
-      captainA,
-      captainB,
-      oversLimit: state.oversLimit,
-      teamALogoUri,
-      teamBLogoUri,
-    };
-
-    return {
-      oversLimit: state.oversLimit,
-      result: state.result ?? "",
-      innings: [snap(state.innings[0]), snap(state.innings[1])],
-      // @ts-ignore — allow meta bag for downstream use
-      meta,
-    };
-  }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0E11" }}>
       <ImageBackground source={bg} style={{ flex: 1 }} resizeMode="cover">
@@ -654,7 +619,16 @@ export default function Scoring() {
                 <View style={{ flexDirection: "row", gap: 10 }}>
                   <Pressable
                     onPress={() => {
-                      const payload = buildSummaryPayload(state);
+                      const payload = buildSummaryPayload(state, {
+                        teamAName,
+                        teamBName,
+                        teamA,
+                        teamB,
+                        captainA,
+                        captainB,
+                        teamALogoUri,
+                        teamBLogoUri,
+                      });
                       router.push({
                         pathname: "/match/summary",
                         params: {
