@@ -1,9 +1,14 @@
+import { Alert } from "../../components/ui/AppAlert";
 // app/match/toss.tsx
-import { Link, router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
+  Link,
+  router,
+  useLocalSearchParams } from "expo-router";
+import React,
+  { useMemo,
+  useRef,
+  useState } from "react";
+import {  Animated,
   Easing,
   Image,
   ImageBackground,
@@ -448,142 +453,58 @@ export default function TossScreen() {
    =========================== */
 
 const COIN_W = 220;
-const COIN_R = COIN_W / 2;
 
-function CoinPlate({
+function CoinFace({
   label,
-  children,
 }: {
   label: "HEADS" | "TAILS";
-  children: React.ReactNode;
 }) {
-  const cx = COIN_R;
-  const cy = COIN_R;
-  const R = COIN_R - 10;
-
   return (
-    <Svg width={COIN_W} height={COIN_W} viewBox={`0 0 ${COIN_W} ${COIN_W}`}>
-      <Defs>
-        <RadialGradient id={`${label}-base`} cx="48%" cy="44%" r="70%">
-          <Stop offset="0%" stopColor="#FFF6D2" />
-          <Stop offset="55%" stopColor="#DCC877" />
-          <Stop offset="100%" stopColor="#9A8441" />
-        </RadialGradient>
-        <LinearGradient id={`${label}-wash`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%" stopColor="#fff8d9" stopOpacity={0.35} />
-          <Stop offset="50%" stopColor="#c5ad63" stopOpacity={0.15} />
-          <Stop offset="100%" stopColor="#6f5e2b" stopOpacity={0.35} />
-        </LinearGradient>
-        <LinearGradient id={`${label}-rim`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%" stopColor="#FFF0BE" />
-          <Stop offset="50%" stopColor="#CDB571" />
-          <Stop offset="100%" stopColor="#6C5A28" />
-        </LinearGradient>
-        <LinearGradient id={`${label}-emb`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <Stop offset="0%" stopColor="#000" stopOpacity={0.22} />
-          <Stop offset="48%" stopColor="#000" stopOpacity={0.06} />
-          <Stop offset="52%" stopColor="#fff" stopOpacity={0.22} />
-          <Stop offset="100%" stopColor="#fff" stopOpacity={0.12} />
-        </LinearGradient>
-      </Defs>
+    <Svg
+      width={COIN_W}
+      height={COIN_W}
+      viewBox="0 0 220 220"
+    >
+      <Circle
+        cx={110}
+        cy={110}
+        r={101}
+        fill="#E2C95F"
+        stroke="#F5E59A"
+        strokeWidth={8}
+      />
 
-      <Circle cx={cx} cy={cy} r={R} fill={`url(#${label}-base)`} />
-      <Path d={`M 0 0 H ${COIN_W} V ${COIN_W} H 0 Z`} fill={`url(#${label}-wash)`} opacity={0.7} />
-
-      <Circle cx={cx} cy={cy} r={R - 8} stroke={`url(#${label}-rim)`} strokeWidth={3} fill="none" />
-      <Circle cx={cx} cy={cy} r={R + 6} stroke={`url(#${label}-rim)`} strokeWidth={4} fill="none" />
-
-      {Array.from({ length: 72 }).map((_, i) => {
-        const a = (i * Math.PI * 2) / 72;
-        const r1 = R + 2;
-        const r2 = R + 6;
-        const x1 = cx + r1 * Math.cos(a);
-        const y1 = cy + r1 * Math.sin(a);
-        const x2 = cx + r2 * Math.cos(a);
-        const y2 = cy + r2 * Math.sin(a);
-        return (
-          <Path
-            key={i}
-            d={`M ${x1} ${y1} L ${x2} ${y2}`}
-            stroke="#6C5B28"
-            strokeOpacity={0.35}
-            strokeWidth={1}
-          />
-        );
-      })}
+      <Circle
+        cx={110}
+        cy={110}
+        r={91}
+        fill="none"
+        stroke="rgba(80,65,20,0.16)"
+        strokeWidth={2}
+      />
 
       <SvgText
-        x={cx}
-        y={cy - R * 0.46}
-        fontSize={R * 0.28}
-        fontWeight="800"
-        fill="#4D3F18"
-        opacity={0.92}
+        x={110}
+        y={121}
         textAnchor="middle"
-        letterSpacing="2"
+        fontSize={34}
+        fontWeight="900"
+        fill="#493E17"
       >
         {label}
       </SvgText>
-
-      <G>{children}</G>
-
-      <Path
-        d={`M ${cx - R * 0.78} ${cy - R * 0.24} A ${R * 0.95} ${R * 0.95} 0 0 1 ${cx + R * 0.78} ${cy - R * 0.38}`}
-        stroke="#FFF7D6"
-        strokeOpacity={0.5}
-        strokeWidth={2}
-        fill="none"
-      />
-      <Circle cx={cx} cy={cy} r={R - 12} stroke="#000" strokeOpacity={0.08} strokeWidth={4} fill="none" />
     </Svg>
   );
 }
 
 function CoinHeads() {
-  const cx = COIN_R;
-  const cy = COIN_R;
   return (
-    <CoinPlate label="HEADS">
-      {/* Helmet + bat (embossed) */}
-      <Path
-        d={`M ${cx - 42} ${cy - 16}
-           c 16 -24, 52 -24, 72 -6
-           c 12 12, 2 22, -12 22
-           c -8 0, -16 -4, -24 -8
-           c -16 -8, -32 -8, -46 0
-           c -6 3, -10 2, -12 -2 z`}
-        fill="url(#HEADS-emb)"
-      />
-      <Path d={`M ${cx - 26} ${cy + 2} H ${cx + 44}`} stroke="#2A2412" strokeOpacity={0.28} strokeWidth={3} />
-      <Path d={`M ${cx - 22} ${cy + 10} H ${cx + 50}`} stroke="#2A2412" strokeOpacity={0.22} strokeWidth={3} />
-      <Path
-        d={`M ${cx + 44} ${cy + 24} l 14 -20 c 2 -3 6 -3 8 0 l 2 3
-            c 1 2 1 5 -1 7 l -17 18 c -2 2 -5 3 -8 2 l -2 -1 c -3 -1 -4 -4 -2 -6 z`}
-        fill="url(#HEADS-emb)"
-      />
-    </CoinPlate>
+    <CoinFace label="HEADS" />
   );
 }
 
 function CoinTails() {
-  const cx = COIN_R;
-  const cy = COIN_R;
   return (
-    <CoinPlate label="TAILS">
-      {/* Ball + wickets (embossed) */}
-      <Circle cx={cx - 34} cy={cy + 2} r={12} fill="url(#TAILS-emb)" />
-      <Path
-        d={`M ${cx - 44} ${cy + 2} a 12 12 0 0 1 20 0`}
-        stroke="#2A2412"
-        strokeOpacity={0.22}
-        strokeWidth={3}
-        fill="none"
-      />
-      <Path d={`M ${cx + 6} ${cy - 26} v 58`} stroke="url(#TAILS-emb)" strokeWidth={7} />
-      <Path d={`M ${cx + 26} ${cy - 24} v 58`} stroke="url(#TAILS-emb)" strokeWidth={7} />
-      <Path d={`M ${cx + 46} ${cy - 26} v 58`} stroke="url(#TAILS-emb)" strokeWidth={7} />
-      <Path d={`M ${cx + 2} ${cy - 26} h 18`} stroke="#2A2412" strokeOpacity={0.22} strokeWidth={4} />
-      <Path d={`M ${cx + 22} ${cy - 26} h 18`} stroke="#2A2412" strokeOpacity={0.22} strokeWidth={4} />
-    </CoinPlate>
+    <CoinFace label="TAILS" />
   );
 }

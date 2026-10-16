@@ -1,12 +1,15 @@
+import { Alert } from "../../components/ui/AppAlert";
 // app/match/summary.tsx
 import * as FileSystem from "expo-file-system";
 import * as Print from "expo-print";
-import { Link, router, useLocalSearchParams } from "expo-router";
-import * as Sharing from "expo-sharing";
-import { useMemo, useState } from "react";
 import {
-  Alert,
-  Image,
+  Link,
+  router,
+  useLocalSearchParams } from "expo-router";
+import * as Sharing from "expo-sharing";
+import { useMemo,
+  useState } from "react";
+import {  Image,
   ImageBackground,
   Modal,
   Platform,

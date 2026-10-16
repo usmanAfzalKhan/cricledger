@@ -1,8 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Image,
+import { useEffect, useMemo, useState } from "react";
+import {  Image,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -10,17 +8,30 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert } from "../../../components/ui/AppAlert";
 
 import bg from "../../../assets/bg/stadium.png";
 import QuickOverProgress from "../../../components/quick-match/QuickOverProgress";
 import QuickScorePad from "../../../components/quick-match/QuickScorePad";
+import MatchScoringHeader from "../../../components/match-ui/MatchScoringHeader";
+import MatchScoreCard from "../../../components/match-ui/MatchScoreCard";
 import { styles as s } from "../../../components/quick-match/quickScoringStyles";
-import { useQuickScoring } from "../../../components/quick-match/useQuickScoring";
+import {
+  type QuickScoreState,
+  useQuickScoring,
+} from "../../../components/quick-match/useQuickScoring";
+import { saveQuickProgress } from "../../../components/storage/progressStorage";
 import { styles as home } from "../../styles/home";
+import { useCricAudio } from "../../../components/audio/AudioProvider";
+import MatchSfxToggle from "../../../components/audio/MatchSfxToggle";
 
 type TeamID = "A" | "B";
 
 export default function QuickScoring() {
+  const {
+    playBoundary,
+    playWicket,
+  } = useCricAudio();
   const p = useLocalSearchParams<{
     teamAName?: string;
     teamBName?: string;
@@ -34,6 +45,7 @@ export default function QuickScoring() {
     firstRuns?: string;
     firstWickets?: string;
     firstBalls?: string;
+    savedScore?: string;
   }>();
 
   const teamAName = String(p.teamAName || "Team A");
@@ -72,9 +84,60 @@ export default function QuickScoring() {
 
   const target = Number(p.target || 0);
 
-  const scoring = useQuickScoring(limit);
+  const restoredScore =
+    useMemo<QuickScoreState | undefined>(() => {
+      if (!p.savedScore) return undefined;
+
+      try {
+        return JSON.parse(
+          String(p.savedScore)
+        ) as QuickScoreState;
+      } catch {
+        return undefined;
+      }
+    }, [p.savedScore]);
+
+  const scoring = useQuickScoring(
+    limit,
+    restoredScore
+  );
 
   const [autoPrompted, setAutoPrompted] = useState(false);
+
+  useEffect(() => {
+    void saveQuickProgress({
+      stage: "scoring",
+      params: {
+        teamAName,
+        teamBName,
+        teamALogoUri: String(
+          p.teamALogoUri || ""
+        ),
+        teamBLogoUri: String(
+          p.teamBLogoUri || ""
+        ),
+        overs: String(p.overs || limit),
+        chaseOvers: String(
+          p.chaseOvers || ""
+        ),
+        battingFirst: firstBatting,
+        innings: secondInnings
+          ? "2"
+          : "1",
+        target: String(target),
+        firstRuns: String(
+          p.firstRuns || "0"
+        ),
+        firstWickets: String(
+          p.firstWickets || "0"
+        ),
+        firstBalls: String(
+          p.firstBalls || "0"
+        ),
+      },
+      score: scoring.score,
+    });
+  }, [scoring.score]);
 
   const targetReached =
     secondInnings && target > 0 && scoring.runs >= target;
@@ -91,6 +154,26 @@ export default function QuickScoring() {
     0,
     target - scoring.runs
   );
+
+
+  function handleQuickRun(
+    run: number
+  ) {
+    if (
+      run === 4 ||
+      run === 6
+    ) {
+      playBoundary();
+    }
+
+    scoring.addRun(run);
+  }
+
+  function handleQuickWicket() {
+    playWicket();
+
+    scoring.addWicket();
+  }
 
   function goToResult() {
     router.push({
@@ -216,93 +299,56 @@ export default function QuickScoring() {
         <View style={home.bgGlow} />
         <View style={home.bgCorner} />
 
+        <MatchSfxToggle />
+
         <SafeAreaView style={home.safe}>
           <ScrollView
             contentContainerStyle={s.screenContent}
           >
-            <View style={s.header}>
-              <Pressable
-                style={s.backButton}
-                onPress={() => router.back()}
-              >
-                <Text style={s.backText}>‹ Back</Text>
-              </Pressable>
+            <MatchScoringHeader
+              title="Quick Scoring"
+              inningsLabel={
+                secondInnings
+                  ? "2nd Innings"
+                  : "1st Innings"
+              }
+              onBack={() =>
+                router.back()
+              }
+            />
 
-              <View style={{ alignItems: "center" }}>
-                <Text style={s.headerTitle}>
-                  Quick Scoring
-                </Text>
-                <Text style={s.inningText}>
-                  {secondInnings
-                    ? "2nd Innings"
-                    : "1st Innings"}
-                </Text>
-              </View>
-
-              <View style={s.headerSpacer} />
-            </View>
-
-            <View style={s.scoreCard}>
-              <View style={s.teamRow}>
-                {logo ? (
-                  <Image
-                    source={{ uri: logo }}
-                    style={s.logo}
-                  />
-                ) : null}
-
-                <Text style={s.teamName}>
-                  {battingName}
-                </Text>
-
-                <Text style={s.battingLabel}>
-                  BATTING
-                </Text>
-              </View>
-
-              <Text style={s.scoreMain}>
-                {scoring.runs}/{scoring.wickets}
-              </Text>
-
-              <View style={s.scoreMetaRow}>
-                <View style={s.metaBox}>
-                  <Text style={s.metaLabel}>OVERS</Text>
-                  <Text style={s.metaValue}>
-                    {scoring.oversText} / {limit}
-                  </Text>
-                </View>
-
-                <View style={s.metaBox}>
-                  <Text style={s.metaLabel}>
-                    RUN RATE
-                  </Text>
-                  <Text style={s.metaValue}>
-                    {scoring.runRate.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-
-              {secondInnings ? (
-                <View style={s.chaseBox}>
-                  <Text style={s.chaseText}>
-                    Target {target} • Need {runsNeeded} from{" "}
-                    {ballsLeft} balls
-                  </Text>
-                </View>
-              ) : null}
-
-              <Text
-                style={[
-                  s.muted,
-                  {
-                    textAlign: "center",
-                    marginTop: 10,
-                  },
-                ]}
-              >
-                Bowling: {bowlingName}
-              </Text>
-            </View>
+            <MatchScoreCard
+              teamName={battingName}
+              logoUri={logo}
+              runs={scoring.runs}
+              wickets={
+                scoring.wickets
+              }
+              oversText={
+                scoring.oversText
+              }
+              oversLimit={limit}
+              runRate={
+                scoring.runRate.toFixed(
+                  2
+                )
+              }
+              bowlingText={
+                "Bowling: " +
+                bowlingName
+              }
+              targetText={
+                secondInnings
+                  ? "Target " +
+                    target +
+                    " • Need " +
+                    runsNeeded +
+                    " from " +
+                    ballsLeft +
+                    " balls"
+                  : undefined
+              }
+            />
 
             {targetReached ? (
               <View style={s.statusBox}>
@@ -330,8 +376,8 @@ export default function QuickScoring() {
                   ? "Finish Match"
                   : "End Innings"
               }
-              onRun={scoring.addRun}
-              onWicket={scoring.addWicket}
+              onRun={handleQuickRun}
+              onWicket={handleQuickWicket}
               onExtra={scoring.addExtra}
               onUndo={scoring.undo}
               onEnd={endInnings}

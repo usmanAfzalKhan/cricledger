@@ -10,23 +10,28 @@ export type QuickDelivery = {
   over: number;
 };
 
-type ScoreState = {
+export type QuickScoreState = {
   runs: number;
   wickets: number;
   legalBalls: number;
   deliveries: QuickDelivery[];
 };
 
-const initialScore: ScoreState = {
+const initialScore: QuickScoreState = {
   runs: 0,
   wickets: 0,
   legalBalls: 0,
   deliveries: [],
 };
 
-export function useQuickScoring(maxOvers: number) {
-  const [score, setScore] = useState<ScoreState>(initialScore);
-  const undoStack = useRef<ScoreState[]>([]);
+export function useQuickScoring(
+  maxOvers: number,
+  restored?: QuickScoreState
+) {
+  const [score, setScore] = useState<QuickScoreState>(
+    () => restored ?? initialScore
+  );
+  const undoStack = useRef<QuickScoreState[]>([]);
 
   const maxBalls = maxOvers * 6;
   const oversComplete = score.legalBalls >= maxBalls;
@@ -157,6 +162,7 @@ export function useQuickScoring(maxOvers: number) {
   );
 
   return {
+    score,
     runs: score.runs,
     wickets: score.wickets,
     legalBalls: score.legalBalls,

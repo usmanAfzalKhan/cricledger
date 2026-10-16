@@ -1,10 +1,14 @@
-// app/styles/lineups.ts
 import { StyleSheet } from "react-native";
 import { THEME } from "./home";
 
 export const styles = StyleSheet.create({
   wrap: {
-    padding: 16,
+    width: "100%",
+    maxWidth: 540,
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 40,
     gap: 16,
     minHeight: "100%",
   },
@@ -14,32 +18,54 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+
   backLink: {
-    color: THEME.TEXT_MUTED,
-    fontSize: 14,
-    fontWeight: "800",
+    minWidth: 64,
+    color: "rgba(255,255,255,0.68)",
+    fontSize: 13,
+    fontWeight: "900",
+    paddingVertical: 10,
   },
+
   title: {
     color: THEME.TEXT,
-    fontSize: 18,
+    fontSize: 23,
     fontWeight: "900",
-    letterSpacing: 0.3,
+    letterSpacing: -0.3,
   },
 
-  // VS banner container
   vsCard: {
-    backgroundColor: THEME.CARD,
+    minHeight: 82,
+
+    backgroundColor:
+      "rgba(7,19,26,0.93)",
+
     borderWidth: 1,
-    borderColor: THEME.BORDER,
-    borderRadius: 16,
-    padding: 14,
+    borderColor:
+      "rgba(120,215,154,0.22)",
+
+    borderRadius: 24,
+
+    paddingHorizontal: 16,
+    paddingVertical: 17,
+
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center", // centered row
-    gap: 12,
+    justifyContent: "center",
+
+    gap: 11,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.24,
+    shadowRadius: 13,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+
+    elevation: 5,
   },
 
-  // NEW: split titles so text aligns cleanly around the center
   teamTitleLeft: {
     flex: 1,
     color: THEME.TEXT,
@@ -47,6 +73,7 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "right",
   },
+
   teamTitleRight: {
     flex: 1,
     color: THEME.TEXT,
@@ -55,7 +82,6 @@ export const styles = StyleSheet.create({
     textAlign: "left",
   },
 
-  // (keep for other uses if needed)
   teamTitle: {
     flex: 1,
     color: THEME.TEXT,
@@ -64,100 +90,150 @@ export const styles = StyleSheet.create({
   },
 
   vsPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+
+    alignItems: "center",
+    justifyContent: "center",
+
     borderWidth: 1,
-    borderColor: THEME.BORDER,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor:
+      "rgba(120,215,154,0.35)",
+
+    backgroundColor:
+      "rgba(120,215,154,0.12)",
   },
+
   vsText: {
-    color: THEME.TEXT,
+    color: THEME.PRIMARY,
+    fontSize: 11,
     fontWeight: "900",
-    letterSpacing: 1,
+    letterSpacing: 1.1,
   },
 
   squadsCard: {
-    backgroundColor: "rgba(12,18,24,0.65)",
+    backgroundColor:
+      "rgba(6,17,24,0.92)",
+
     borderWidth: 1,
-    borderColor: THEME.BORDER,
-    borderRadius: 16,
-    padding: 12,
+    borderColor:
+      "rgba(255,255,255,0.09)",
+
+    borderRadius: 25,
+
+    padding: 14,
+
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
+
   squadCol: {
     flex: 1,
-    gap: 8,
+    gap: 9,
   },
+
   squadHead: {
     color: THEME.TEXT,
     fontSize: 14,
-    fontWeight: "800",
-    opacity: 0.9,
+    fontWeight: "900",
   },
+
   list: {
-    gap: 6,
+    gap: 7,
   },
+
   row: {
+    minHeight: 45,
+
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
+
+    gap: 8,
+
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+
+    borderRadius: 14,
+
+    backgroundColor:
+      "rgba(255,255,255,0.045)",
+
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor:
+      "rgba(255,255,255,0.075)",
   },
+
   num: {
-    width: 22,
+    width: 23,
     textAlign: "center",
-    color: THEME.TEXT_MUTED,
+
+    color:
+      "rgba(255,255,255,0.42)",
+
+    fontSize: 11,
     fontWeight: "900",
   },
+
   name: {
     flex: 1,
+
     color: THEME.TEXT,
-    fontSize: 15,
+
+    fontSize: 13,
     fontWeight: "700",
   },
+
   capBadge: {
-    color: THEME.ACCENT,
+    color: THEME.PRIMARY,
     fontWeight: "900",
   },
+
   divider: {
     width: 1,
-    backgroundColor: THEME.BORDER,
-    opacity: 0.5,
+    backgroundColor:
+      "rgba(255,255,255,0.08)",
     borderRadius: 1,
   },
 
   hint: {
     textAlign: "center",
-    color: THEME.TEXT_MUTED,
-    fontSize: 12,
+
+    color:
+      "rgba(255,255,255,0.47)",
+
+    fontSize: 11,
+    fontWeight: "700",
   },
 
-  // Toss button styles
   tossBtn: {
-    marginTop: 10,
-    backgroundColor: THEME.ACCENT,
-    borderColor: THEME.ACCENT,
+    minHeight: 58,
+    marginTop: 5,
+
+    backgroundColor: THEME.PRIMARY,
+
+    borderColor:
+      "rgba(255,255,255,0.14)",
+
     borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
+
+    borderRadius: 18,
+
     alignItems: "center",
     justifyContent: "center",
+
     flexDirection: "row",
     gap: 8,
   },
+
   tossText: {
-    color: "#0B1220",
+    color: "#07131A",
     fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.2,
+    fontWeight: "900",
+    letterSpacing: 0.1,
   },
 });
 
-export default function __IGNORE_STYLES_ROUTE__() { return null; }
+export default function __IGNORE_STYLES_ROUTE__() {
+  return null;
+}

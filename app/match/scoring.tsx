@@ -2,9 +2,7 @@
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Animated,
+import {  Animated,
   Image,
   ImageBackground,
   Pressable,
@@ -13,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert } from "../../components/ui/AppAlert";
 
 // 🔽 static imports fix Metro asset resolution
 import bg from "../../assets/bg/stadium.png";
@@ -60,6 +59,14 @@ import {
   onLegalBallComplete,
 } from "../../components/scoring/scoringEvents";
 import { buildSummaryPayload } from "../../components/scoring/summaryPayload";
+import MatchScoringHeader from "../../components/match-ui/MatchScoringHeader";
+import MatchScoreCard from "../../components/match-ui/MatchScoreCard";
+import MatchUtilityButtons from "../../components/scoring/MatchUtilityButtons";
+import { useCricAudio } from "../../components/audio/AudioProvider";
+import MatchSfxToggle from "../../components/audio/MatchSfxToggle";
+import {
+  saveFullMeta,
+} from "../../components/storage/progressStorage";
 
 /** Static images for guide */
 const IMG = {
@@ -74,6 +81,10 @@ const IMG = {
 };
 
 export default function Scoring() {
+  const {
+    playBoundary,
+    playWicket,
+  } = useCricAudio();
   // params
   const p = useLocalSearchParams<{
     teamAName?: string;
@@ -89,6 +100,7 @@ export default function Scoring() {
     tossWinner?: "A" | "B";
     decision?: "Bat" | "Bowl";
     overs?: string;
+    resume?: string;
   }>();
   const teamAName = (p.teamAName && String(p.teamAName).trim()) || "Team A";
   const teamBName = (p.teamBName && String(p.teamBName).trim()) || "Team B";
@@ -103,6 +115,7 @@ export default function Scoring() {
   const captainB = typeof p.captainB === "string" ? p.captainB : "";
   const teamALogoUri = typeof p.teamALogoUri === "string" ? p.teamALogoUri : "";
   const teamBLogoUri = typeof p.teamBLogoUri === "string" ? p.teamBLogoUri : "";
+  const isResume = p.resume === "1";
 
   const battingFirst: TeamID =
     (tossWinner === "A" && decision === "Bat") ||
@@ -132,6 +145,9 @@ export default function Scoring() {
     matchOver: false,
     superOvers: null,
   }));
+  const [readyToSave, setReadyToSave] =
+    useState(!isResume);
+
   const inn = state.innings[state.inningsIndex];
 
   // side-effect runner for match-end transitions
@@ -182,14 +198,41 @@ export default function Scoring() {
   }, [inn.freeHit]);
 
   useEffect(() => {
+    if (!isResume) {
+      setReadyToSave(true);
+      return;
+    }
+
     (async () => {
       const restored = await load();
-      if (restored) setState(restored);
+
+      if (restored) {
+        setState(restored);
+      }
+
+      setReadyToSave(true);
     })();
-  }, []);
+  }, [isResume]);
+
   useEffect(() => {
-    save(state);
-  }, [state]);
+    if (!readyToSave) return;
+
+    void save(state);
+
+    void saveFullMeta({
+      teamAName,
+      teamBName,
+      teamA: JSON.stringify(teamA),
+      teamB: JSON.stringify(teamB),
+      captainA,
+      captainB,
+      teamALogoUri,
+      teamBLogoUri,
+      tossWinner,
+      decision,
+      overs: String(state.oversLimit),
+    });
+  }, [state, readyToSave]);
 
   // === innings switch notifier (ensures toast happens immediately when switching to 2nd innings)
   const prevInningsIndexRef = useRef(state.inningsIndex);
@@ -591,15 +634,26 @@ export default function Scoring() {
         <View style={home.bgGlow} />
         <View style={home.bgCorner} />
 
+        <MatchSfxToggle />
+
         <ScrollView contentContainerStyle={{ paddingBottom: 36 }}>
-          {/* Heading */}
-          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-            <Text style={{ color: THEME.TEXT, fontSize: 18, fontWeight: "900", letterSpacing: 0.3 }}>
-              Scoring
-            </Text>
-            <Text style={{ color: THEME.TEXT_MUTED, marginTop: 2, fontSize: 12 }}>
-              Select openers & bowler, then score.
-            </Text>
+          <View
+            style={{
+              paddingHorizontal: 15,
+              paddingTop: 12,
+            }}
+          >
+            <MatchScoringHeader
+              title="Scoring"
+              inningsLabel={
+                state.inningsIndex === 0
+                  ? "1st Innings"
+                  : "2nd Innings"
+              }
+              onBack={() =>
+                router.back()
+              }
+            />
           </View>
 
           {state.matchOver && (
@@ -706,99 +760,122 @@ export default function Scoring() {
             </View>
           ) : (
             <>
-              {/* TV strip */}
-              <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
-                <Animated.View
-                  style={[
+              <View
+                style={{
+                  paddingHorizontal: 15,
+                  marginTop: 12,
+                }}
+              >
+                <MatchScoreCard
+                  teamName={
+                    inn.battingTeamName
+                  }
+                  logoUri={
+                    inn.battingTeamName ===
+                    teamAName
+                      ? teamALogoUri
+                      : teamBLogoUri
+                  }
+                  runs={inn.runs}
+                  wickets={
+                    inn.wickets
+                  }
+                  oversText={ovText(
+                    inn.completedOvers,
+                    inn.legalBalls
+                  )}
+                  oversLimit={
+                    state.oversLimit
+                  }
+                  runRate={
+                    toTwo(currRR)
+                  }
+                  bowlingText={
+                    "Bowling: " +
+                    inn.bowlingTeamName
+                  }
+                  targetText={
+                    needText ||
+                    undefined
+                  }
+                  details={[
                     {
-                      padding: 14,
-                      backgroundColor: "rgba(12,18,24,0.65)",
-                      borderWidth: 1,
-                      borderColor: THEME.BORDER,
-                      borderRadius: 16,
+                      label:
+                        "STRIKER",
+                      value: striker
+                        ? striker.name +
+                          " " +
+                          striker.runs +
+                          "*"
+                        : "-",
+                      accent: true,
                     },
-                    stripStyle,
+                    {
+                      label:
+                        "NON-STRIKER",
+                      value:
+                        nonStriker
+                          ? nonStriker.name +
+                            " " +
+                            nonStriker.runs
+                          : "-",
+                    },
+                    {
+                      label:
+                        "BOWLER",
+                      value: bowler
+                        ? bowler.name +
+                          " " +
+                          ovText(
+                            inn.completedOvers,
+                            inn.legalBalls
+                          )
+                        : "-",
+                    },
                   ]}
-                >
-                  <View style={s.stripRow}>
-                    <Text style={s.stripLine}>
-                      {inn.battingTeamName} {inn.runs}/{inn.wickets} <Text style={s.sep}>|</Text>{" "}
-                      <Text style={[s.name, { color: THEME.ACCENT }]}>
-                        🏏 {striker?.name} {typeof striker?.runs === "number" ? `${striker?.runs}*` : ""}
-                      </Text>{" "}
-                      <Text style={s.sep}>  </Text>
-                      <Text style={s.name}>
-                        {nonStriker?.name} {typeof nonStriker?.runs === "number" ? `${nonStriker?.runs}` : ""}
-                      </Text>{" "}
-                      <Text style={s.sep}>|</Text>{" "}
-                      <Text style={[s.name, { color: "#ff6666" }]}>
-                        🔴 {bowler?.name} {ovText(inn.completedOvers, inn.legalBalls)}
-                      </Text>{" "}
-                      <Text style={s.sep}>|</Text>{" "}
-                      <Text style={[s.name, { color: THEME.TEXT_MUTED }]}>
-                        Inns {ovText(inn.completedOvers, inn.legalBalls)}/{state.oversLimit}
-                      </Text>
-                    </Text>
-                  </View>
-                  <Text style={[s.stripSub, { marginTop: 6 }]}>Run Rate: {toTwo(currRR)}</Text>
-                  {needText ? <Text style={[s.stripSub, { marginTop: 4 }]}>{needText}</Text> : null}
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                    {!!inn.hatTrickCandidate && inn.hatTrickCandidate.chain === 2 && (
-                      <View style={s.chip}>
-                        <Text style={s.chipText}>HATTRICK BALL</Text>
-                      </View>
-                    )}
-                    {inn.freeHit && (
-                      <Animated.View
-                        style={[
-                          s.chip,
-                          {
-                            backgroundColor: "rgba(0, 230, 118, 0.12)",
-                            borderColor: "#00E676",
-                            opacity: freeHitPulse,
-                          },
-                        ]}
-                      >
-                        <Text style={[s.chipText, { color: "#00E676", fontWeight: "900" }]}>FREE HIT</Text>
-                      </Animated.View>
-                    )}
-                  </View>
-                </Animated.View>
+                  statusChips={[
+                    ...(
+                      inn.hatTrickCandidate &&
+                      inn.hatTrickCandidate
+                        .chain === 2
+                        ? [
+                            "HATTRICK BALL",
+                          ]
+                        : []
+                    ),
+                    ...(
+                      inn.freeHit
+                        ? ["FREE HIT"]
+                        : []
+                    ),
+                  ]}
+                />
               </View>
 
               {/* Over progress = this over only */}
               <OverProgress pips={pipsForThisOver} />
 
-              {/* Big WICKET button + RunPad */}
-              <View style={{ paddingHorizontal: 16 }}>
-                <Pressable
-                  disabled={state.matchOver || incomingBatterOpen || needSetup}
-                  onPress={() => onPad("W")}
-                  style={[
-                    s.padBtn,
-                    s.btnDanger,
-                    { marginBottom: 6, paddingVertical: 18, opacity: state.matchOver || incomingBatterOpen || needSetup ? 0.6 : 1 },
-                  ]}
-                >
-                  <Text style={[s.padBtnText, { fontWeight: "900" }]}>WICKET</Text>
-                </Pressable>
-              </View>
+              {/* Shared Quick/Full scoring pad */}
+              <RunPad
+                onPress={onPad}
+                disabled={
+                  state.matchOver ||
+                  incomingBatterOpen ||
+                  needSetup
+                }
+              />
 
-              <RunPad onPress={onPad} disabled={state.matchOver || incomingBatterOpen || needSetup} />
+              <MatchUtilityButtons
+                onTeamSheets={() =>
+                  setInnCore((i) => {
+                    i.showSheets = true;
+                  })
+                }
+                onGuide={() =>
+                  setShowGuide(true)
+                }
+              />
 
-              <View style={{ paddingHorizontal: 16 }}>
-                <Pressable style={[s.padBtn, s.btnGhost]} onPress={() => setInnCore((i) => { i.showSheets = true; })}>
-                  <Text style={s.padBtnText}>Team Sheets</Text>
-                </Pressable>
-
-                {/* Guide button */}
-                <Pressable
-                  style={[s.padBtn, s.btnGhost, { marginTop: 8 }]}
-                  onPress={() => setShowGuide(true)}
-                >
-                  <Text style={s.padBtnText}>Guide</Text>
-                </Pressable>
-              </View>
             </>
           )}
         </ScrollView>

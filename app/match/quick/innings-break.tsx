@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ImageBackground,
     Pressable,
@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import bg from "../../../assets/bg/stadium.png";
 import { styles as s } from "../../../components/quick-match/quickScoringStyles";
+import { saveQuickProgress } from "../../../components/storage/progressStorage";
 import { styles as home } from "../../styles/home";
 
 export default function QuickInningsBreak() {
